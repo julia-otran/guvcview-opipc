@@ -6,6 +6,8 @@
 *.exe
 *.o
 *.so
+*.lo
+*.la
 
 # Packages #
 ############
@@ -28,6 +30,7 @@
 ############
 autom4te.cache
 Makefile.in
+Makefile
 configure
 aclocal.m4
 config.guess
@@ -37,7 +40,11 @@ depcomp
 install-sh
 compile
 missing
-
+data/**
+**/.libs/**
+**/.deps/**
+po/**
+pkgconfig/**
 # build dir #
 #############
 build

@@ -26,6 +26,8 @@
 #include <SDL.h>
 #include <assert.h>
 #include <math.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "gview.h"
 #include "gviewrender.h"
@@ -40,6 +42,15 @@ SDL_DisplayMode display_mode;
 static SDL_Window*  sdl_window = NULL;
 static SDL_Texture* rending_texture = NULL;
 static SDL_Renderer*  main_renderer = NULL;
+
+pthread_t thread_id;
+
+uint8_t *frame_ptr;
+int frame_width;
+int frame_height;
+int run = 1;
+
+int sdl_init_flags;
 
 /*
  * initialize sdl video
@@ -56,7 +67,8 @@ static SDL_Renderer*  main_renderer = NULL;
  *
  * returns: error code
  */
-static int video_init(int width, int height, int flags)
+
+static int video_init2(int width, int height, int flags)
 {
 	int w = width;
 	int h = height;
@@ -86,7 +98,7 @@ static int video_init(int width, int height, int flags)
             return -1;
         }
 
-        SDL_SetHint("SDL_HINT_RENDER_SCALE_QUALITY", "1");
+        SDL_SetHint("SDL_HINT_RENDER_SCALE_QUALITY", "0");
 
 		sdl_window = SDL_CreateWindow(
 			"Guvcview Video",                  // window title
@@ -213,9 +225,15 @@ static int video_init(int width, int height, int flags)
 
 	SDL_RenderSetLogicalSize(main_renderer, width, height);
 	SDL_SetRenderDrawBlendMode(main_renderer, SDL_BLENDMODE_NONE);
+	SDL_ShowCursor(SDL_DISABLE);
+
 
     rending_texture = SDL_CreateTexture(main_renderer,
-		SDL_PIXELFORMAT_IYUV,  /*yuv420p*/
+		// SDL_PIXELFORMAT_IYUV,  // yuv420p
+		// SDL_PIXELFORMAT_RGB24,
+		// SDL_PIXELFORMAT_ARGB32,
+		//SDL_PIXELFORMAT_RGBX8888,
+		SDL_PIXELFORMAT_RGBA32,
 		SDL_TEXTUREACCESS_STREAMING,
 		width,
 		height);
@@ -227,6 +245,60 @@ static int video_init(int width, int height, int flags)
 		return -4;
 	}
 
+	run = 1;
+
+    return 0;
+}
+
+void* render_loop() {
+	int frames = 0;
+	int tick = 0;
+	int tick_acc = 0;
+	int tick_diff = 0;
+	int sleep_ms = 0;
+	float fps = 0;
+
+        video_init2(frame_width, frame_height, sdl_init_flags);
+
+        while (run) {
+	    tick = SDL_GetTicks();
+
+            if (frame_ptr && frame_width) {
+                SDL_UpdateTexture(rending_texture, NULL, frame_ptr, frame_width * 4);
+                SDL_RenderCopy(main_renderer, rending_texture, NULL, NULL);
+
+                SDL_RenderPresent(main_renderer);
+            }
+
+	    free(frame_ptr);
+	    frame_ptr = NULL;
+
+	    frames++;
+	    tick_diff = SDL_GetTicks() - tick;
+	    sleep_ms = 16 - tick_diff;
+
+	    if (sleep_ms < 0)
+		    sleep_ms = 0;
+
+	    usleep(sleep_ms * 1000);
+
+	    tick_acc = tick_acc + tick_diff + sleep_ms;
+
+	    if (tick_acc > 1000) {
+		fps = frames / (tick_acc / 1000.0);
+		printf("SDL FPS = %.2f \n", fps);
+		frames = 0;
+		tick_acc = 0;
+	    }
+        }
+}
+
+static int video_init(int width, int height, int flags) {
+    frame_width = width;
+    frame_height = height;
+    sdl_init_flags = flags;
+
+    pthread_create(&thread_id, NULL, render_loop, NULL);
     return 0;
 }
 
@@ -254,7 +326,7 @@ static int video_init(int width, int height, int flags)
 		return -1;
 	}
 
-	assert(rending_texture != NULL);
+	// assert(rending_texture != NULL);
 
 	return 0;
  }
@@ -275,21 +347,32 @@ static int video_init(int width, int height, int flags)
 int render_sdl2_frame(uint8_t *frame, int width, int height)
 {
 	/*asserts*/
-	assert(rending_texture != NULL);
+	// assert(rending_texture != NULL);
 	assert(frame != NULL);
+	
+	if (frame_ptr != NULL) {
+		return 0;
+	}
 
-	SDL_SetRenderDrawColor(main_renderer, 0, 0, 0, 255); /*black*/
-	SDL_RenderClear(main_renderer);
+	uint8_t *copyframe = malloc(width * height * 4);
+	memcpy(copyframe, frame, width * height * 4);
+
+	frame_ptr = copyframe;
+	frame_width = width;
+	frame_height = height;
+
+	// SDL_SetRenderDrawColor(main_renderer, 0, 0, 0, 255); /*black*/
+	// SDL_RenderClear(main_renderer);
 
 	/* since data is continuous we can use SDL_UpdateTexture
 	 * instead of SDL_UpdateYUVTexture.
 	 * no need to use SDL_Lock/UnlockTexture (it doesn't seem faster)
 	 */
-	SDL_UpdateTexture(rending_texture, NULL, frame, width);
+	// SDL_UpdateTexture(rending_texture, NULL, frame, width * 4);
 
-	SDL_RenderCopy(main_renderer, rending_texture, NULL, NULL);
+	// SDL_RenderCopy(main_renderer, rending_texture, NULL, NULL);
 
-	SDL_RenderPresent(main_renderer);
+	// SDL_RenderPresent(main_renderer);
 
 	return 0;
 }
@@ -396,6 +479,10 @@ void render_sdl2_dispatch_events()
  */
 void render_sdl2_clean()
 {
+	run = 0;
+	
+	pthread_join(thread_id, NULL);
+
 	if(rending_texture)
 		SDL_DestroyTexture(rending_texture);
 

@@ -131,7 +131,7 @@ int alloc_v4l2_frames(v4l2_dev_t *vd)
 			/*frame queue*/
 			for(i=0; i<vd->frame_queue_size; ++i)
 			{
-				vd->frame_queue[i].yuv_frame = calloc(framesizeIn, sizeof(uint8_t));
+				vd->frame_queue[i].yuv_frame = malloc(width * height * 4);
 				if(vd->frame_queue[i].yuv_frame == NULL)
 				{
 					fprintf(stderr, "V4L2_CORE: FATAL memory allocation failure (alloc_v4l2_frames): %s\n", strerror(errno));

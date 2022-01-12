@@ -56,7 +56,7 @@ guvcview_CPPFLAGS = $(guvcview_CFLAGS) \
 					-fPIC
 endif		  
 
-guvcview_LDFLAGS = $(LIBINTL)
+guvcview_LDFLAGS = $(LIBINTL) --verbose -L/opt/libjpeg-turbo/lib32 -L/usr/local/lib -lavcodec -pthread -lm -lz -lswresample -lm -lavutil -pthread -lvdpau -lX11 -lm -lX11
 
 guvcview_LDADD = ../gview_v4l2core/$(GVIEWV4L2CORE_LIBRARY_NAME).la \
 				../gview_render/$(GVIEWRENDER_LIBRARY_NAME).la \

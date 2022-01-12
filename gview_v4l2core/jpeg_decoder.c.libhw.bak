@@ -42,7 +42,8 @@
 #include "jpeg_decoder.h"
 #include "gview.h"
 #include "../config.h"
-#include "jpeg_dec_main.h";
+
+#include "/home/orangepi/media-codec/sunxi-cedarx/SOURCE/vdecoder/include/vdecoder.h"
 
 extern int verbosity;
 
@@ -55,7 +56,18 @@ typedef struct _jpeg_decoder_context_t
 } jpeg_decoder_context_t;
 
 static jpeg_decoder_context_t *jpeg_ctx = NULL;
-/* 
+
+static VideoDecoder *video_decoder = NULL;
+static VideoStreamInfo *video_stream_info = NULL;
+static VConfig *video_config = NULL;
+static VideoStreamDataInfo *video_stream_data_info = NULL;
+
+static char *video_decoder_buffer = NULL;
+static int video_decoder_buffer_size = 0;
+static char *video_decoder_ring_buffer = NULL;
+static int video_decoder_ring_buffer_size = 0;
+
+/*
  * init (m)jpeg decoder context
  * args:
  *    width - image width
@@ -84,7 +96,37 @@ int jpeg_init_decoder(int width, int height)
 	jpeg_ctx->height = height;
         jpeg_ctx->pic_size = width * height * 4;
 
-	hw_init(width, height);
+	video_stream_info = malloc(sizeof(VideoStreamInfo));
+	video_config = malloc(sizeof(VConfig));
+	video_stream_data_info = malloc(sizeof(VideoStreamDataInfo));
+
+	memset(video_stream_info, 0, sizeof(VideoStreamInfo));
+	memset(video_stream_data_info, 0, sizeof(VideoStreamDataInfo));
+
+	video_stream_info->eCodecFormat = VIDEO_CODEC_FORMAT_MJPEG;
+	video_stream_info->nWidth = width;
+	video_stream_info->nHeight = height;
+	video_stream_info->nFrameRate = 30;
+	video_stream_info->nFrameDuration = 33;
+
+	video_config->eOutputPixelFormat = PIXEL_FORMAT_YV12;
+	video_config->nVbvBufferSize = width * height * 4;
+
+        video_decoder = CreateVideoDecoder();
+
+        int result = InitializeVideoDecoder(video_decoder, video_stream_info, video_config);
+
+	if (result != 0) {
+		printf("Failed to initialize video decoder\n");
+		return result;
+	}
+
+        result = RequestVideoStreamBuffer(video_decoder, 3 * width * height, &video_decoder_buffer, &video_decoder_buffer_size, &video_decoder_ring_buffer, &video_decoder_ring_buffer_size, 0);
+
+        if (result != 0) {
+            printf("Failed to RequestVideoStreamBuffer. result: %i \n", result);
+            return result;
+        }
 
 	return E_OK;
 }
@@ -110,10 +152,66 @@ int jpeg_decode(uint8_t *out_buf, uint8_t *in_buf, int size)
 	assert(in_buf != NULL);
 	assert(out_buf != NULL);
 
+	memcpy(video_decoder_buffer, in_buf, size);
 
-	hw_decode_jpeg_main(in_buf, size, out_buf);
+	printf("video_decoder_buffer %x \n", video_decoder_buffer);
 
-	return 0;
+	int result = 0;
+
+	video_stream_data_info->pData = video_decoder_buffer;
+	video_stream_data_info->nLength = size;
+	video_stream_data_info->bIsFirstPart = 1;
+	video_stream_data_info->bIsLastPart = 1;
+
+	result = SubmitVideoStreamData(video_decoder, video_stream_data_info, 0);
+
+	if (result != 0) {
+		printf("Failed to send video data to decoder. result: %i \n", result);
+		return result;
+	}
+
+	result = DecodeVideoStream(video_decoder, 0, 0, 1, 0);
+
+	if (result == VDECODE_RESULT_NO_FRAME_BUFFER || result == VDECODE_RESULT_NO_BITSTREAM || result == VDECODE_RESULT_UNSUPPORTED) {
+		printf("Failed to decode video. result: %i \n", result);
+		return result;
+	} else {
+		result = 0;
+	}
+
+	VideoPicture *picture = RequestPicture(video_decoder, 0);
+
+	if (picture == NULL) {
+		printf("Failed to get picture. return null");
+		return -1;
+	}
+
+	
+	int width = jpeg_ctx->width;
+	int height = jpeg_ctx->height;
+	int pixIdx = 0;
+	int rgbPixIdx = 0;
+
+	for (int x=0; x<width; x++) {
+	    for (int y=0; y<height; y++) {
+		pixIdx = (x * height) + y;
+		rgbPixIdx = pixIdx * 4;
+		out_buf[rgbPixIdx] = picture->pData0[pixIdx];
+	    }
+	}
+
+	printf("pic width: %i \n", picture->nWidth);
+	printf("pic height: %i \n", picture->nHeight);
+
+	memcpy(out_buf, picture->pData0, jpeg_ctx->width * jpeg_ctx->height);
+
+	result = ReturnPicture(video_decoder, picture);
+
+	if (result != 0) {
+		printf("Failed to return picture. result: %i \n", result);
+	}
+
+	return result;
 }
 
 /*
@@ -135,7 +233,6 @@ void jpeg_close_decoder()
 
 	jpeg_ctx = NULL;
 
-	hw_close();
-
+	DestroyVideoDecoder(video_decoder);
 }
 

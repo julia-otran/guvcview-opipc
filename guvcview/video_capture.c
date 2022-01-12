@@ -19,6 +19,8 @@
 #                                                                               #
 ********************************************************************************/
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -34,6 +36,9 @@
 /* support for internationalization - i18n */
 #include <locale.h>
 #include <libintl.h>
+#include <inttypes.h>
+#include <math.h>
+#include <time.h>
 
 #include "gviewv4l2core.h"
 #include "gviewrender.h"
@@ -991,6 +996,9 @@ void *capture_loop(void *data)
 	options_t *my_options = (options_t *) cl_data->options;
 	config_t *my_config = (config_t *) cl_data->config;
 
+	long ms;
+	struct timespec timesp;
+
 	uint64_t my_last_photo_time = 0; /*timer count*/
 	int my_photo_npics = 0;/*no npics*/
 
@@ -1054,6 +1062,8 @@ void *capture_loop(void *data)
 	v4l2core_start_stream(my_vd);
 
 	v4l2_frame_buff_t *frame = NULL; //pointer to frame buffer
+
+	int count = 0;
 
 	__COND_SIGNAL(&capture_cond);
 	__UNLOCK_MUTEX(&capture_mutex);
@@ -1131,154 +1141,31 @@ void *capture_loop(void *data)
 		}
 
 		/*get the frame from v4l2 core*/
+		// clock_gettime(CLOCK_REALTIME, &timesp);
+		// ms = round(timesp.tv_nsec / 1.0e6);
+		// printf("\nGETTING frame %i\n", ms);
+
 		frame = v4l2core_get_decoded_frame(my_vd);
+
+		// clock_gettime(CLOCK_REALTIME, &timesp);
+                // ms = round(timesp.tv_nsec / 1.0e6);
+		// printf("GOT frame %i\n", ms);
+
 		if( frame != NULL)
 		{
 			/*run software autofocus (must be called after frame was grabbed and decoded)*/
 			if(do_soft_autofocus || do_soft_focus)
 				do_soft_focus = v4l2core_soft_autofocus_run(my_vd, frame);
 
-			/* apply fx effects to the frame
-			 * do it before saving the frame
-			 * (we want to store the effects)
-			 */
-			render_frame_fx(frame->yuv_frame, my_render_mask);
-
-			/*check the timers*/
-			if(check_photo_timer())
-			{
-				if((frame->timestamp - my_last_photo_time) > my_photo_timer)
-				{
-					save_image = 1;
-					my_last_photo_time = frame->timestamp;
-
-					if(my_options->photo_npics > 0)
-					{
-						if(my_photo_npics > 0)
-							my_photo_npics--;
-						else
-						{
-							save_image = 0;
-							stop_photo_timer(); /*close timer*/
-							if(!check_video_timer() && my_options->exit_on_term > 0)
-								quit_callback(NULL); /*close app*/
-						}
-					}
-				}
-			}
-
-			if(check_video_timer())
-			{
-				if((frame->timestamp - my_video_begin_time) > my_video_timer)
-				{
-					stop_video_timer();
-					if(!check_photo_timer() && my_options->exit_on_term > 0)
-						quit_callback(NULL); /*close app*/
-				}
-			}
-
-			/*save the frame (photo)*/
-			if(save_image)
-			{
-				char *img_filename = NULL;
-
-				/*get_photo_[name|path] always return a non NULL value*/
-				char *name = strdup(get_photo_name());
-				char *path = strdup(get_photo_path());
-
-				if(get_photo_sufix_flag())
-				{
-					char *new_name = add_file_suffix(path, name);
-					free(name); /*free old name*/
-					name = new_name; /*replace with suffixed name*/
-				}
-				int pathsize = strlen(path);
-				if(path[pathsize] != '/')
-					img_filename = smart_cat(path, '/', name);
-				else
-					img_filename = smart_cat(path, 0, name);
-
-				//if(debug_level > 1)
-				//	printf("GUVCVIEW: saving image to %s\n", img_filename);
-
-				snprintf(status_message, 79, _("saving image to %s"), img_filename);
-				gui_status_message(status_message);
-
-				v4l2core_save_image(frame, img_filename, get_photo_format());
-
-				free(path);
-				free(name);
-				free(img_filename);
-
-				save_image = 0; /*reset*/
-			}
-
-			/*save the frame (video)*/
-			if(video_capture_get_save_video())
-			{
-				int size = (frame->width * frame->height * 3) / 2;
-
-				uint8_t *input_frame = frame->yuv_frame;
-				/*
-				 * TODO: check codec_id, format and frame flags
-				 * (we may want to store a compressed format
-				 */
-				if(get_video_codec_ind() == 0) //raw frame
-				{
-					switch(v4l2core_get_requested_frame_format(my_vd))
-					{
-						case  V4L2_PIX_FMT_H264:
-							input_frame = frame->h264_frame;
-							size = (int) frame->h264_frame_size;
-							break;
-						default:
-							input_frame = frame->raw_frame;
-							size = (int) frame->raw_frame_size;
-							break;
-					}
-
-				}
-				/*add the frame to the encoder buffer*/
-				encoder_add_video_frame(input_frame, size, frame->timestamp, frame->isKeyframe);
-
-				/*
-				 * exponencial scheduler
-				 *  with 50% threshold (milisec)
-				 *  and max value of 250 ms (4 fps)
-				 */
-				double time_sched = encoder_buff_scheduler(ENCODER_SCHED_LIN, 0.5, 250);
-				if(time_sched > 0)
-				{
-					switch(v4l2core_get_requested_frame_format(my_vd))
-					{
-						case  V4L2_PIX_FMT_H264:
-						{
-							uint32_t framerate = lround(time_sched * 1E6); /*nanosec*/
-							v4l2core_set_h264_frame_rate_config(my_vd, framerate);
-							break;
-						}
-						default:
-						{
-							struct timespec req = {
-								.tv_sec = 0,
-								.tv_nsec = (uint32_t) time_sched * 1E6};/*nanosec*/
-							nanosleep(&req, NULL);
-							break;
-						}
-					}
-				}
-			}
-
-			/* render the osd
-			 * must be done after saving the frame 
-			 * (we don't want to record the osd effects)
-			 */
-			render_frame_osd(frame->yuv_frame);
-
 			/* finally render the frame */
-			snprintf(render_caption, 29, "Guvcview  (%2.2f fps)", 
-				v4l2core_get_realfps(my_vd));
-			render_set_caption(render_caption);
+			// snprintf(render_caption, 29, "Guvcview  (%2.2f fps)", 
+			if (count > 5) {
+			  printf("FPS = %2.2f\n", v4l2core_get_realfps(my_vd));
+			  count = 0;
+			}
+
+			count++;
+			// render_set_caption(render_caption);
 			render_frame(frame->yuv_frame);
 
 			/*we are done with the frame buffer release it*/
