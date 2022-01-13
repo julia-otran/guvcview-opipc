@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <turbojpeg.h>
+// #include <armneon.h>
 
 #include "gview.h"
 #include "gviewrender.h"
@@ -43,7 +44,7 @@ SDL_DisplayMode display_mode;
 static SDL_Window*  sdl_window = NULL;
 static SDL_Texture* rending_texture = NULL;
 static SDL_Renderer*  main_renderer = NULL;
-
+static SDL_Surface* sdl_surface = NULL;
 pthread_t thread_id;
 
 uint8_t *frame_ptr;
@@ -100,7 +101,7 @@ static int video_init2(int width, int height, int flags)
         }
 
         SDL_SetHint("SDL_HINT_RENDER_SCALE_QUALITY", "0");
-
+		
 		sdl_window = SDL_CreateWindow(
 			"Guvcview Video",                  // window title
 			SDL_WINDOWPOS_UNDEFINED,           // initial x position
@@ -141,6 +142,7 @@ static int video_init2(int width, int height, int flags)
 			printf("RENDER: setting window size to %ix%i\n", w, h);
 
 		SDL_SetWindowSize(sdl_window, w, h);
+		
     }
 
     if(verbosity > 2)
@@ -226,15 +228,19 @@ static int video_init2(int width, int height, int flags)
 
 	SDL_RenderSetLogicalSize(main_renderer, width, height);
 	SDL_SetRenderDrawBlendMode(main_renderer, SDL_BLENDMODE_NONE);
+	
+
 	SDL_ShowCursor(SDL_DISABLE);
 
 
+	
     rending_texture = SDL_CreateTexture(main_renderer,
 		// SDL_PIXELFORMAT_IYUV,  // yuv420p
 		// SDL_PIXELFORMAT_RGB24,
 		// SDL_PIXELFORMAT_ARGB32,
 		//SDL_PIXELFORMAT_RGBX8888,
 		SDL_PIXELFORMAT_RGBA32,
+		// SDL_PIXELFORMAT_YUY2,
 		SDL_TEXTUREACCESS_STREAMING,
 		width,
 		height);
@@ -245,6 +251,8 @@ static int video_init2(int width, int height, int flags)
 		render_sdl2_clean();
 		return -4;
 	}
+
+	// sdl_surface = SDL_GetWindowSurface(sdl_window);
 
 	run = 1;
 
@@ -261,24 +269,13 @@ void* render_loop() {
 
 	uint8_t *tmp_frame = malloc(frame_width * frame_height * 4);
         uint32_t *output_ptrs = NULL;
-        uint8_t *yplane = NULL;
-        uint8_t *uplane = NULL;
-        uint8_t *vplane = NULL;
 
 	tjhandle tj = tjInitDecompress();
 
 	int width = frame_width;
 	int height = frame_height;
-        int w = 0, h = 0;
-        int c_sizeline = width/2;
 
-        uint8_t *pu = NULL;
-	uint8_t *inu1 = NULL;
-	uint8_t *inu2 = NULL;
-
-        uint8_t *pv = NULL;
-	uint8_t *inv1 = NULL;
-	uint8_t *inv2 = NULL;
+	int frame_size = width * height;
 
 	unsigned char *srcPlanes[3];
 
@@ -289,57 +286,29 @@ void* render_loop() {
 
             if (frame_ptr && frame_width) {
         	output_ptrs = (uint32_t*) frame_ptr;
-        	// yplane = (uint8_t*) output_ptrs[0];
-        	// uplane = (uint8_t*) output_ptrs[1];
-        	// vplane = (uint8_t*) output_ptrs[2];
+		
 		srcPlanes[0] = output_ptrs[0];
 		srcPlanes[1] = output_ptrs[1];
 		srcPlanes[2] = output_ptrs[2];
 
-		// if (yplane) {
-		//	memcpy(tmp_frame, yplane, frame_width * frame_height);
-		// }
-
+		
 		if (srcPlanes[0] && srcPlanes[1] && srcPlanes[2]) {
 			tjDecodeYUVPlanes(tj, srcPlanes, NULL, TJSAMP_422, tmp_frame, width, width * 4, height, TJPF_RGBX, 0);
+		} else {
+			// printf("Else ???\n");
 		}
 
-		if (uplane && 0) {
-
-		    pu = tmp_frame;
-		    inu1 = uplane;
-		    inu2 = inu1 + (width/2);
-
-		    pv = pu + ((width * height) / 4);
-		    inv1 = vplane; // inu1 + ((width * height) / 2);
-		    inv2 = inv1 + (width / 2);
-		    for(h = 0; h < height; h+=2)
-			{
-				inu2 = inu1 + (width / 2);
-				inv2 = inv1 + (width / 2);
-				for(w = 0; w < width/2; w++)
-				{
-					*pu++ = ((*inu1++) + (*inu2++)) /2; //average u sample
-					*pv++ = ((*inv1++) + (*inv2++)) /2; //average v samples
-				}
-				inu1 = inu2;
-				inv1 = inv2;
-			}
-		}
-
-		// memcpy(tmp_frame, yplane, frame_width * frame_height);
-
-    		    // use for RGBA
+    		// use for RGBA
                 SDL_UpdateTexture(rending_texture, NULL, tmp_frame, frame_width * 4);
-		// SDL_UpdateYUVTexture(rending_texture, NULL, yplane, frame_width, tmp_frame, frame_width / 2, tmp_frame + (width * height / 4), frame_width / 2); 
-                // SDL_UpdateTexture(rending_texture, NULL, tmp_frame, frame_width);
+		// SDL_UpdateYUVTexture(rending_texture, NULL, yplane, frame_width, uplane, frame_width / 2, vplane, frame_width / 2); 
+                // SDL_UpdateTexture(rending_texture, NULL, tmp_frame, frame_width * 2);
 		SDL_RenderCopy(main_renderer, rending_texture, NULL, NULL);
 
                 SDL_RenderPresent(main_renderer);
             }
 
 	    //free(frame_ptr);
-	    frame_ptr = NULL;
+	    // frame_ptr = NULL;
 
 	    frames++;
 	    tick_diff = SDL_GetTicks() - tick;
@@ -418,10 +387,6 @@ int render_sdl2_frame(uint8_t *frame, int width, int height)
 	// assert(rending_texture != NULL);
 	assert(frame != NULL);
 	
-	if (frame_ptr != NULL) {
-		return 0;
-	}
-
 	// uint8_t *copyframe = malloc(width * height * 4);
 	// memcpy(copyframe, frame, width * height * 4);
 

@@ -141,7 +141,7 @@ void output_ppm(struct jpeg_t *jpeg, uint8_t *luma_buffer, uint8_t *chroma_buffe
 	// memcpy((output+1920*1080), chroma_buffer, 1920*1080);
 	output_p[0] = (uint32_t)luma_buffer;
 	output_p[1] = (uint32_t)chroma_buffer;
-	output_p[2] = ((uint32_t)chroma_buffer) + (output_size);
+	output_p[2] = ((uint32_t)chroma_buffer) + (output_size / 2);
 }
 
 void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
@@ -155,10 +155,10 @@ void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
 	memcpy(input_buffer, jpeg->data, jpeg->data_len);
 	ve_flush_cache(input_buffer, jpeg->data_len);
 
-	writel((0x2 << 4) | 0x2, ve_regs + VE_OUTPUT_FORMAT);
-	writel(output_size | (0x2 << 30), ve_regs + 0xe8);
-	// writel(output_size, ve_regs + 0xc4);
-	// writel(line_stride | (line_stride << 16), ve_regs + 0xc8);
+	writel((0x3 << 4) | 0x3, ve_regs + VE_OUTPUT_FORMAT);
+	writel((output_size / 2) | (0x2 << 30), ve_regs + 0xe8);
+	writel(output_size, ve_regs + 0xc4);
+	writel(line_stride | (line_stride << 16), ve_regs + 0xc8);
 
 	// activate MPEG engine
 	// void *ve_regs = ve_get(VE_ENGINE_MPEG, 0);
@@ -230,8 +230,9 @@ void hw_init(int width, int height) {
         
 	int output_size = ((width + 31) & ~31) * ((height + 31) & ~31);
 
-        luma_output = ve_malloc(output_size);
-        chroma_output = ve_malloc(output_size * 3);
+        luma_output = ve_malloc(output_size * 3);
+        // chroma_output = ve_malloc(output_size * 3);
+	chroma_output = luma_output + output_size;
 
 	// tj = tjInitDecompress();
 }
