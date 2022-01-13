@@ -55,7 +55,7 @@ static inline uint32_t readl(void *addr)
 
 #define VE_CTRL				0x000
 #define VE_VERSION			0x0f0
-
+#define VE_OUTPUT_FORMAT                0x0ec
 #define VE_MPEG_PIC_HDR			0x100
 #define VE_MPEG_VOP_HDR			0x104
 #define VE_MPEG_SIZE			0x108

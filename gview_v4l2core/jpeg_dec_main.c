@@ -39,6 +39,7 @@
 #include <sys/mman.h>
 #include <turbojpeg.h>
 
+#include "colorspaces.h"
 #include "jpeg.h"
 #include "ve.h"
 
@@ -124,94 +125,40 @@ static uint8_t *input_buffer = NULL;
 static uint8_t *luma_output = NULL;
 static uint8_t *chroma_output = NULL;
 static void* ve_regs = NULL;
-static uint8_t *yPlane = NULL;
-static uint8_t *uPlane = NULL;
-static uint8_t *vPlane = NULL;
 static tjhandle tj = NULL;
 
-void output_ppm(struct jpeg_t *jpeg, uint8_t *luma_buffer, uint8_t *chroma_buffer, uint32_t *output)
+void output_ppm(struct jpeg_t *jpeg, uint8_t *luma_buffer, uint8_t *chroma_buffer, uint8_t *output)
 {
-	int x, x1, xMod32, y, cy, cy1, cy2, mcuW = 0;
-	float Y, Cb, Cr = 0.0;
+	
+	int line_stride = ((jpeg->width + 31) & ~31);
+        int output_size = line_stride * ((jpeg->height + 31) & ~31);
+	uint32_t *output_p = (uint32_t*)output;
 
-	uint32_t Y4, CbCrCbCr1, CbCrCbCr2;
-	uint32_t cbcr_sum;
-	uint32_t y_sum;
-
-	uint32_t *y_out = yPlane;
-	uint32_t *cb_out = uPlane;
-	uint32_t *cr_out = vPlane;
-
-	mcuW = ((jpeg->width + 31) & ~0x1f) * 32;
-
-	for (y = 0; y < jpeg->height; y++)
-	{
-		for (x = 0; x < jpeg->width; x+=4)
-		{
-			// reordering and colorspace conversion should be done by Display Engine Frontend (DEFE)
-			cy = y / jpeg->comp[0].samp_v;
-			x1 = (x & ~ 0x1f) << 5;
-			xMod32 = x & 0x1f;
-			cy1 = ((cy & 0x1f) << 5);
-			cy2 = (cy >>5) * mcuW;
-
-			y_sum = x1 + xMod32 + ((y & 0x1f) << 5) + ((y >> 5) * mcuW);
-			cbcr_sum = x1 + cy1 + cy2 + xMod32;
-			cbcr_sum = cbcr_sum & ~0xF;
-
-			// float Y = *((uint8_t *)(luma_buffer + x1 + xMod32 + ((y % 32) * 32) + ((y / 32) * mcuW)));
-			Y4 = *((uint32_t *)(luma_buffer + y_sum));
-
-			*y_out = Y4;
-			y_out++;
-
-
-			if ((x & 0x7) == 0) {
-                        CbCrCbCr1 = *((uint32_t *)(chroma_buffer + (cbcr_sum)));
-                        CbCrCbCr2 = *((uint32_t *)(chroma_buffer + (cbcr_sum) + 4));
-
-			*cr_out = (CbCrCbCr1 & 0xFF000000) | ((CbCrCbCr1 & 0x0000ff00) << 8) | ((CbCrCbCr2 & 0xff000000) >> 16) | ((CbCrCbCr2 & 0x0000ff00) >> 8);
-			*cb_out = ((CbCrCbCr1 & 0x00ff0000) << 8) | ((CbCrCbCr1 & 0x000000ff) << 16) | ((CbCrCbCr2 & 0x00ff0000) >> 8) | ((CbCrCbCr2 & 0x000000ff));
-
-			cb_out++;
-			cr_out++;
-			}
-
-			/*
-			float Cb = *((uint8_t *)) - 128.0;
-			float Cr = *((uint8_t *)crbSum + (xMod32 | 1)) - 128.0;
-
-			float R = Y + 1.402 * Cr;
-			float G = Y - 0.344136 * Cb - 0.714136 * Cr;
-			float B = Y + 1.772 * Cb;
-
-			if (R > 255.0) R = 255.0;
-			else if (R < 0.0) R = 0.0;
-
-			if (G > 255.0) G = 255.0;
-			else if (G < 0.0) G = 0.0;
-
-			if (B > 255.0) B = 255.0;
-			else if (B < 0.0) B = 0.0;
-
-			output[(y * 1920) + x] = ((uint8_t) R) | (((uint8_t) G) << 8) | (((uint8_t) B) << 16);
-			*/
-		}
-	}
-
-	unsigned char *srcPlanes[3] = { yPlane, uPlane, vPlane };
-	tjDecodeYUVPlanes(tj, srcPlanes, NULL, TJSAMP_422, output, jpeg->width, jpeg->width * 4, jpeg->height, TJPF_RGBX, 0); 
+	// unsigned char *srcPlanes[3] = { luma_buffer, chroma_buffer, (chroma_buffer + output_size) };
+	// tjDecodeYUVPlanes(tj, srcPlanes, NULL, TJSAMP_422, output, jpeg->width, jpeg->width * 4, jpeg->height, TJPF_RGBX, 0); 
+	//
+	// memcpy(output, luma_buffer, 1920*1080);
+	// memcpy((output+1920*1080), chroma_buffer, 1920*1080);
+	output_p[0] = (uint32_t)luma_buffer;
+	output_p[1] = (uint32_t)chroma_buffer;
+	output_p[2] = ((uint32_t)chroma_buffer) + (output_size);
 }
 
 void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
 {
 	int input_size =(jpeg->data_len + 65535) & ~65535;
+	int line_stride = ((jpeg->width + 31) & ~31);
 	// uint8_t *input_buffer = ve_malloc(input_size);
-	int output_size = ((jpeg->width + 31) & ~31) * ((jpeg->height + 31) & ~31);
+	int output_size = line_stride * ((jpeg->height + 31) & ~31);
 	// uint8_t *luma_output = ve_malloc(output_size);
 	// uint8_t *chroma_output = ve_malloc(output_size);
 	memcpy(input_buffer, jpeg->data, jpeg->data_len);
 	ve_flush_cache(input_buffer, jpeg->data_len);
+
+	writel((0x2 << 4) | 0x2, ve_regs + VE_OUTPUT_FORMAT);
+	writel(output_size | (0x2 << 30), ve_regs + 0xe8);
+	// writel(output_size, ve_regs + 0xc4);
+	// writel(line_stride | (line_stride << 16), ve_regs + 0xc8);
 
 	// activate MPEG engine
 	// void *ve_regs = ve_get(VE_ENGINE_MPEG, 0);
@@ -263,6 +210,8 @@ void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
 	// clean interrupt flag (??)
 	writel(0x0000c00f, ve_regs + VE_MPEG_STATUS);
 
+	ve_flush_cache(luma_output, output_size);
+	ve_flush_cache(chroma_output, output_size * 2);
 	output_ppm(jpeg, luma_output, chroma_output, output);
 
 	// ve_free(input_buffer);
@@ -282,18 +231,12 @@ void hw_init(int width, int height) {
 	int output_size = ((width + 31) & ~31) * ((height + 31) & ~31);
 
         luma_output = ve_malloc(output_size);
-        chroma_output = ve_malloc(output_size);
+        chroma_output = ve_malloc(output_size * 3);
 
-	yPlane = malloc(output_size);
-	uPlane = malloc(output_size / 2);
-	vPlane = malloc(output_size / 2);
-
-	tj = tjInitDecompress();
+	// tj = tjInitDecompress();
 }
 
 void hw_close() {
-	free(uPlane);
-	free(vPlane);
 	tjFree(tj);
 	ve_put();
 	ve_free(input_buffer);
@@ -309,8 +252,8 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen, uint8_t* output) {
                 printf("ERROR: Can't parse JPEG\n");
 
        // dump_jpeg(&jpeg);
-       printf("hw_decode_jpeg before\n");
+       // printf("hw_decode_jpeg before\n");
        hw_decode_jpeg(&jpeg, output);
-       printf("hw_decode_jpeg after\n");
+       // printf("hw_decode_jpeg after\n");
 }
 

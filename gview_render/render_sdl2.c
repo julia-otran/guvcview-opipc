@@ -28,6 +28,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <turbojpeg.h>
 
 #include "gview.h"
 #include "gviewrender.h"
@@ -258,19 +259,86 @@ void* render_loop() {
 	int sleep_ms = 0;
 	float fps = 0;
 
+	uint8_t *tmp_frame = malloc(frame_width * frame_height * 4);
+        uint32_t *output_ptrs = NULL;
+        uint8_t *yplane = NULL;
+        uint8_t *uplane = NULL;
+        uint8_t *vplane = NULL;
+
+	tjhandle tj = tjInitDecompress();
+
+	int width = frame_width;
+	int height = frame_height;
+        int w = 0, h = 0;
+        int c_sizeline = width/2;
+
+        uint8_t *pu = NULL;
+	uint8_t *inu1 = NULL;
+	uint8_t *inu2 = NULL;
+
+        uint8_t *pv = NULL;
+	uint8_t *inv1 = NULL;
+	uint8_t *inv2 = NULL;
+
+	unsigned char *srcPlanes[3];
+
         video_init2(frame_width, frame_height, sdl_init_flags);
 
         while (run) {
 	    tick = SDL_GetTicks();
 
             if (frame_ptr && frame_width) {
-                SDL_UpdateTexture(rending_texture, NULL, frame_ptr, frame_width * 4);
-                SDL_RenderCopy(main_renderer, rending_texture, NULL, NULL);
+        	output_ptrs = (uint32_t*) frame_ptr;
+        	// yplane = (uint8_t*) output_ptrs[0];
+        	// uplane = (uint8_t*) output_ptrs[1];
+        	// vplane = (uint8_t*) output_ptrs[2];
+		srcPlanes[0] = output_ptrs[0];
+		srcPlanes[1] = output_ptrs[1];
+		srcPlanes[2] = output_ptrs[2];
+
+		// if (yplane) {
+		//	memcpy(tmp_frame, yplane, frame_width * frame_height);
+		// }
+
+		if (srcPlanes[0] && srcPlanes[1] && srcPlanes[2]) {
+			tjDecodeYUVPlanes(tj, srcPlanes, NULL, TJSAMP_422, tmp_frame, width, width * 4, height, TJPF_RGBX, 0);
+		}
+
+		if (uplane && 0) {
+
+		    pu = tmp_frame;
+		    inu1 = uplane;
+		    inu2 = inu1 + (width/2);
+
+		    pv = pu + ((width * height) / 4);
+		    inv1 = vplane; // inu1 + ((width * height) / 2);
+		    inv2 = inv1 + (width / 2);
+		    for(h = 0; h < height; h+=2)
+			{
+				inu2 = inu1 + (width / 2);
+				inv2 = inv1 + (width / 2);
+				for(w = 0; w < width/2; w++)
+				{
+					*pu++ = ((*inu1++) + (*inu2++)) /2; //average u sample
+					*pv++ = ((*inv1++) + (*inv2++)) /2; //average v samples
+				}
+				inu1 = inu2;
+				inv1 = inv2;
+			}
+		}
+
+		// memcpy(tmp_frame, yplane, frame_width * frame_height);
+
+    		    // use for RGBA
+                SDL_UpdateTexture(rending_texture, NULL, tmp_frame, frame_width * 4);
+		// SDL_UpdateYUVTexture(rending_texture, NULL, yplane, frame_width, tmp_frame, frame_width / 2, tmp_frame + (width * height / 4), frame_width / 2); 
+                // SDL_UpdateTexture(rending_texture, NULL, tmp_frame, frame_width);
+		SDL_RenderCopy(main_renderer, rending_texture, NULL, NULL);
 
                 SDL_RenderPresent(main_renderer);
             }
 
-	    free(frame_ptr);
+	    //free(frame_ptr);
 	    frame_ptr = NULL;
 
 	    frames++;
@@ -354,10 +422,10 @@ int render_sdl2_frame(uint8_t *frame, int width, int height)
 		return 0;
 	}
 
-	uint8_t *copyframe = malloc(width * height * 4);
-	memcpy(copyframe, frame, width * height * 4);
+	// uint8_t *copyframe = malloc(width * height * 4);
+	// memcpy(copyframe, frame, width * height * 4);
 
-	frame_ptr = copyframe;
+	frame_ptr = frame; //copyframe;
 	frame_width = width;
 	frame_height = height;
 
