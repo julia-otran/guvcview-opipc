@@ -31,15 +31,12 @@
 
 #include "gview.h"
 #include "gviewv4l2core.h"
-#include "gviewrender.h"
-#include "gviewencoder.h"
 #include "core_time.h"
 
 #include "../config.h"
 #include "video_capture.h"
 #include "options.h"
 #include "config.h"
-#include "gui.h"
 #include "core_io.h"
 
 int debug_level = 0;
@@ -48,6 +45,15 @@ static __THREAD_TYPE capture_thread;
 
 __MUTEX_TYPE capture_mutex = __STATIC_MUTEX_INIT;
 __COND_TYPE capture_cond;
+
+char *get_profile_name() 
+{
+	return strdup("default.gpfl");
+}
+
+char *get_profile_path() {
+	return strdup(getenv("HOME"));
+}
 
 /*
  * signal callback
@@ -67,14 +73,6 @@ void signal_callback_handler(int signum)
 			quit_callback(NULL);
 			break;
 
-		case SIGUSR1:
-			gui_click_video_capture_button();
-			break;
-
-		case SIGUSR2:
-			/* save image */
-			video_capture_save_image();
-			break;
 	}
 }
 
@@ -144,116 +142,17 @@ int main(int argc, char *argv[])
 	if (debug_level > 1) printf("GUVCVIEW: language catalog=> dir:%s type:%s cat:%s.mo\n",
 		lc_dir, lc_all, txtdom);
 
-	/*select render API*/
-	int render = RENDER_SDL;
-
-	if(strcasecmp(my_config->render, "none") == 0)
-		render = RENDER_NONE;
-	else if(strcasecmp(my_config->render, "sdl") == 0)
-	{
-#if ENABLE_SDL2
-		render = RENDER_SDL;
-#elif ENABLE_SFML
-		render = RENDER_SFML;
-		printf("GUVCVIEW: not build with sdl2 support (rebuild with --enable-sdl2)\n");
-		printf("GUVCVIEW: using sfml render instead\n");
-#else
-		render = RENDER_NONE;
-		printf("GUVCVIEW: not build with sfml or sdl2 support\n");
-		printf("GUVCVIEW: not rendering any video preview\n");
-#endif
-	}
-	else if(strcasecmp(my_config->render, "sfml") == 0)
-	{
-#if ENABLE_SFML
-		render = RENDER_SFML;
-#elif ENABLE_SDL2
-		render = RENDER_SDL;
-		printf("GUVCVIEW: not build with sfml support (rebuild with --enable-sfml)\n");
-		printf("GUVCVIEW: using sdl2 render instead\n");
-#else
-		render = RENDER_NONE;
-		printf("GUVCVIEW: not build with sfml or sdl2 support\n");
-		printf("GUVCVIEW: not rendering any video preview\n");
-#endif
-	}
-
-	/*select gui API*/
-#if HAS_GTK3
-	int gui = GUI_GTK3;
-#elif HAS_QT5
-	int gui = GUI_QT5;
-#else
-	int gui = GUI_NONE;
-#endif
-
-	if(strncasecmp(my_config->gui, "none", 4) == 0)
-		gui = GUI_NONE;
-	else if(strncasecmp(my_config->gui, "gtk3", 4) == 0)
-	{
-#if HAS_GTK3
-		gui = GUI_GTK3;
-#elif HAS_QT5
-		gui = GUI_QT5;
-		fprintf(stderr, "Guvcview was not build with Gtk3 support: using Qt5\n");
-		strncpy(my_config->gui, "qt5", 4);
-#else
-		gui = GUI_NONE;
-		fprintf(stderr, "Guvcview was not build with gui support\n");
-		strncpy(my_config->gui, "none", 4);
-#endif
-	}
-	else if(strncasecmp(my_config->gui, "qt5", 3) == 0)
-	{
-#if HAS_QT5
-		gui = GUI_QT5;
-#elif HAS_GTK3
-		gui = GUI_GTK3;
-		fprintf(stderr, "Guvcview was not build with Qt5 support: using Gtk3\n");
-		strncpy(my_config->gui, "gtk3", 4);
-#else
-		gui = GUI_NONE;
-		fprintf(stderr, "Guvcview was not build with gui support\n");
-		strncpy(my_config->gui, "none", 4);
-#endif
-	}
-
-	if(debug_level > 0)
-		printf("Guvcview: using GUI %i for option %c%c%c\n", gui, my_config->gui[0], my_config->gui[1],my_config->gui[2]);
-
-	set_gui_api(gui);
-
-	/*select audio API*/
-	int audio = AUDIO_PORTAUDIO;
-
-	if(strcasecmp(my_config->audio, "none") == 0)
-		audio = AUDIO_NONE;
-	else if(strcasecmp(my_config->audio, "port") == 0)
-		audio = AUDIO_PORTAUDIO;
-#if HAS_PULSEAUDIO
-	else if(strcasecmp(my_config->audio, "pulse") == 0)
-		audio = AUDIO_PULSE;
-#endif
-
-	if(debug_level > 1)
-		printf("GUVCVIEW: main thread (tid: %u)\n",
-			(unsigned int) syscall (SYS_gettid));
-		
-	/*set the v4l2 core verbosity*/
 	v4l2core_set_verbosity(debug_level);
 
 	/*set the v4l2core device (redefines language catalog)*/
 	v4l2_dev_t *vd = create_v4l2_device_handler(my_options->device);
 	if(!vd)
 	{
-		char message[50];
-		snprintf(message, 49, "no video device (%s) found", my_options->device);
-		gui_error("Guvcview error", "no video device found", 1);
+		char message[100];
+		snprintf(message, 100, "no video device (%s) found", my_options->device);
 		options_clean();
 		return -1;
 	}
-	else		
-		set_render_flag(render);
 	
 	if(my_options->disable_libv4l2)
 		v4l2core_disable_libv4l2(vd);
@@ -270,91 +169,19 @@ int main(int argc, char *argv[])
 	/*set the intended fps*/
 	v4l2core_define_fps(vd, my_config->fps_num,my_config->fps_denom);
 
-	/*set fx masks*/
-	set_render_fx_mask(my_config->video_fx);
-	set_audio_fx_mask(my_config->audio_fx);
-
-	/*set OSD mask*/
-	/*make sure VU meter OSD is disabled since it's set by the audio capture*/
-	my_config->osd_mask &= ~REND_OSD_VUMETER_MONO;
-	my_config->osd_mask &= ~REND_OSD_VUMETER_STEREO;
-	render_set_osd_mask(my_config->osd_mask);
-
 	/*select video codec*/
 	if(debug_level > 1)
 		printf("GUVCVIEW: setting video codec to '%s'\n", my_config->video_codec);
 		
-	int vcodec_ind = encoder_get_video_codec_ind_4cc(my_config->video_codec);
-	if(vcodec_ind < 0)
-	{
-		char message[50];
-		snprintf(message, 49, "invalid video codec '%s' using raw input", my_config->video_codec);
-		gui_error("Guvcview warning", message, 0);
-
-		fprintf(stderr, "GUVCVIEW: invalid video codec '%s' using raw input\n", my_config->video_codec);
-		vcodec_ind = 0;
-	}
-	set_video_codec_ind(vcodec_ind);
-
-	/*select audio codec*/
-	if(debug_level > 1)
-		printf("GUVCVIEW: setting audio codec to '%s'\n", my_config->audio_codec);
-	int acodec_ind = encoder_get_audio_codec_ind_name(my_config->audio_codec);
-	if(acodec_ind < 0)
-	{
-		char message[50];
-		snprintf(message, 49, "invalid audio codec '%s' using pcm input", my_config->audio_codec);
-		gui_error("Guvcview warning", message, 0);
-
-		fprintf(stderr, "GUVCVIEW: invalid audio codec '%s' using pcm input\n", my_config->audio_codec);
-		acodec_ind = 0;
-	}
-	set_audio_codec_ind(acodec_ind);
 
 	/*check if need to load a profile*/
 	if(my_options->prof_filename)
 		v4l2core_load_control_profile(vd, my_options->prof_filename);
 
 	/*set the profile file*/
-	if(!my_config->profile_name)
 		my_config->profile_name = strdup(get_profile_name());
-	if(!my_config->profile_path)
 		my_config->profile_path = strdup(get_profile_path());
-	set_profile_name(my_config->profile_name);
-	set_profile_path(my_config->profile_path);
 
-	/*set the video file*/
-	if(!my_config->video_name)
-		my_config->video_name = strdup(get_video_name());
-	if(!my_config->video_path)
-		my_config->video_path = strdup(get_video_path());
-	set_video_name(my_config->video_name);
-	set_video_path(my_config->video_path);
-
-	/*set the photo(image) file*/
-	if(!my_config->photo_name)
-		my_config->photo_name = strdup(get_photo_name());
-	if(!my_config->photo_path)
-		my_config->photo_path = strdup(get_photo_path());
-	set_photo_name(my_config->photo_name);
-	set_photo_path(my_config->photo_path);
-
-	/*set audio interface verbosity*/
-	audio_set_verbosity(debug_level);
-
-	/*create the inital audio context (stored staticly in video_capture)*/
-	audio_context_t *audio_ctx = create_audio_context(audio, my_config->audio_device);
-
-	if(audio_ctx != NULL)
-		my_config->audio_device = audio_get_device_index(audio_ctx);
-	else
-		fprintf(stderr, "GUVCVIEW: couldn't get a valid audio context for the selected api - disabling audio\n");
-	
-	encoder_set_verbosity(debug_level);
-
-	/*start capture thread if not in control_panel mode*/
-	if(!my_options->control_panel)
-	{
 		/*
 		 * prepare format:
 		 *   doing this inside the capture thread may create a race
@@ -380,8 +207,6 @@ int main(int argc, char *argv[])
 			{
 				fprintf(stderr, "GUCVIEW: also could not set the first listed stream format\n");
 				fprintf(stderr, "GUVCVIEW: Video capture failed\n");
-
-				gui_error("Guvcview error", "could not start a video stream in the device", 1);
 			}
 		}
 
@@ -399,7 +224,6 @@ int main(int argc, char *argv[])
 			if(ret)
 			{
 				fprintf(stderr, "GUVCVIEW: Video thread creation failed\n");
-				gui_error("Guvcview error", "could not start the video capture thread", 1);
 			}
 			else if(debug_level > 2)
 				printf("GUVCVIEW: created capture thread with tid: %u\n", (unsigned int) capture_thread);
@@ -416,25 +240,12 @@ int main(int argc, char *argv[])
 			else if (ret != 0)
 				fprintf(stderr, "GUVCVIEW: capture_cond wait unknown error: %i\n", ret);
 		}
-	}
-
-	/*initialize the gui */
-	gui_attach(800, 600, my_options->control_panel);
-
-	/*run the gui loop*/
-	gui_run();
 
 	if(debug_level > 2)
 		printf("GUVCVIEW: joining capture thread\n");
 	if(!my_options->control_panel)
 		__THREAD_JOIN(capture_thread);
 
-	if(debug_level > 1)
-		printf("GUVCVIEW: closing audio context\n");
-	/*closes the audio context (stored staticly in video_capture)*/
-	close_audio_context();
-	/*closes the v4l2 device handler (stored staticly in video_capture)*/
-	close_v4l2_device_handler();
 
     /*save config before cleaning the options*/
 	config_save(config_file);

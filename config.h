@@ -10,29 +10,11 @@
 /* always defined to indicate that i18n is enabled */
 #define ENABLE_NLS 1
 
-/* set to 1 if sdl2 is enabled */
-#define ENABLE_SDL2 1
-
-/* set to 1 if sfml is enabled */
-/* #undef ENABLE_SFML */
-
 /* guvcview */
 #define GETTEXT_PACKAGE "guvcview"
 
 /* gview_v4l2core */
 #define GETTEXT_PACKAGE_V4L2CORE "gview_v4l2core"
-
-/* set to 1 if gsl is enabled */
-#define HAS_GSL 1
-
-/* set to 1 if gtk3 installed */
-#define HAS_GTK3 1
-
-/* set to 1 if pulseaudio installed */
-#define HAS_PULSEAUDIO 1
-
-/* set to 1 if Qt5 installed */
-/* #undef HAS_QT5 */
 
 /* Define to 1 if you have the `bind_textdomain_codeset' function. */
 #define HAVE_BIND_TEXTDOMAIN_CODESET 1
@@ -74,9 +56,6 @@
 
 /* Define to 1 if you have the <libavcodec/avcodec.h> header file. */
 #define HAVE_LIBAVCODEC_AVCODEC_H 1
-
-/* Define to 1 if you have the <libavutil/version.h> header file. */
-#define HAVE_LIBAVUTIL_VERSION_H 1
 
 /* Define to 1 if you have the <locale.h> header file. */
 #define HAVE_LOCALE_H 1

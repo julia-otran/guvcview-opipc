@@ -24,7 +24,6 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
-#include "gviewaudio.h"
 #include "gviewv4l2core.h"
 
 typedef struct _capture_loop_data_t
@@ -33,66 +32,6 @@ typedef struct _capture_loop_data_t
 	void *config;
 	void *device;
 } capture_loop_data_t;
-
-/*
- * set render flag
- * args:
- *    value - flag value
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void set_render_flag(int value);
-
-/*
- * get render fx mask
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: render fx mask
- */
-uint32_t get_render_fx_mask();
-
-/*
- * set render fx mask
- * args:
- *    new_mask - new render fx filter mask
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void set_render_fx_mask(uint32_t new_mask);
-
-/*
- * get audio fx mask
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: audio fx mask
- */
-uint32_t get_audio_fx_mask();
-
-/*
- * set audio fx mask
- * args:
- *    new_mask - new audio fx filter mask
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void set_audio_fx_mask(uint32_t new_mask);
 
 /*
  * set software autofocus flag
@@ -119,54 +58,6 @@ void set_soft_autofocus(int value);
 void set_soft_focus(int value);
 
 /*
- * checks if photo timed capture is on
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: 1 if on; 0 if off
- */
-int check_photo_timer();
-
-/*
- * stops the photo timed capture
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void stop_photo_timer();
-
-/*
- * checks if video timed capture is on
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: 1 if on; 0 if off
- */
-int check_video_timer();
-
-/*
- * reset video timer
- * args:
- *   none
- *
- * asserts:
- *   none
- *
- * returns: none
- */
-void reset_video_timer();
-
-/*
  * quit callback
  * args:
  *    data - pointer to user data
@@ -177,30 +68,6 @@ void reset_video_timer();
  * returns: error code
  */
 int quit_callback(void *data);
-
-/*
- * sets the save image flag
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void video_capture_save_image();
-
-/*
- * get encoder status
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: encoder status (1 -running; 0 -not started)
- */
-int get_encoder_status();
 
 /*
  * request format update
@@ -250,66 +117,6 @@ void close_v4l2_device_handler();
  */
 v4l2_dev_t *get_v4l2_device_handler();
 
-/*
- * create an audio context
- * args:
- *    api - audio api
- *    device - api device index (-1 use default)
- *
- * asserts:
- *    none
- *
- * returns: pointer to audio context data
- */
-audio_context_t *create_audio_context(int api, int device);
-
-/*
- * close the audio context
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void close_audio_context();
-
-/*
- * get audio context
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: pointer to audio context data (or NULL if no audio)
- */
-audio_context_t *get_audio_context();
-
-/*
- * start the encoder thread
- * args:
- *   none
- *
- * asserts:
- *   none
- *
- * returns: error code
- */
-int start_encoder_thread();
-
-/*
- * stop the encoder thread
- * args:
- *   none
- *
- * asserts:
- *   none
- *
- * returns: error code
- */
-int stop_encoder_thread();
 
 /*
  * capture loop (should run in a separate thread)

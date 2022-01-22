@@ -28,15 +28,9 @@
 #include "gviewv4l2core.h"
 #include "gview.h"
 #include "core_io.h"
-#include "gui.h"
 #include "options.h"
 #include "../config.h"
 
-
-#define API_HELP_GTK3_QT5		N_("Select GUI API (e.g none; gtk3; qt5)")
-#define API_HELP_GTK3		    N_("Select GUI API (e.g none; gtk3)")
-#define API_HELP_QT5	        N_("Select GUI API (e.g none; qt5)")
-#define API_HELP_NONE		    N_("Select GUI API (e.g none)")
 
 typedef struct _opt_values_t
 {
@@ -113,64 +107,6 @@ static opt_values_t opt_values[] =
 		.opt_help = N_("Request fps (e.g 25 ; 7/3; ...)")
 	},
 	{
-		.opt_short = 'r',
-		.opt_long = "render",
-		.req_arg = 1,
-		.opt_help_arg = N_("RENDER_API"),
-		.opt_help = N_("Select render API (e.g none; sdl; sfml)")
-	},
-	{
-		.opt_short = 'm',
-		.opt_long = "render_window",
-		.req_arg = 1,
-		.opt_help_arg = N_("RENDER_WINDOW_FLAGS"),
-		.opt_help = N_("Set render window flags (e.g none; full; max)")
-	},
-	{
-		.opt_short = 'a',
-		.opt_long = "audio",
-		.req_arg = 1,
-		.opt_help_arg = N_("AUDIO_API"),
-		.opt_help = N_("Select audio API (e.g none; port; pulse)")
-	},
-	{
-		.opt_short = 'k',
-		.opt_long = "audio_device",
-		.req_arg = 1,
-		.opt_help_arg = N_("AUDIO_DEVICE"),
-		.opt_help = N_("Select audio device index for selected api (0..N)")
-	},
-	{
-		.opt_short = 'g',
-		.opt_long = "gui",
-		.req_arg = 1,
-		.opt_help_arg = N_("GUI_API"),
-#if HAS_QT5 && HAS_GTK3
-		.opt_help = API_HELP_GTK3_QT5
-#elif HAS_GTK3
-		.opt_help = API_HELP_GTK3
-#elif HAS_QT5
-		.opt_help = API_HELP_QT5
-#else
-		.opt_help = API_HELP_NONE
-#endif
-
-	},
-	{
-		.opt_short = 'o',
-		.opt_long = "audio_codec",
-		.req_arg = 1,
-		.opt_help_arg = N_("CODEC"),
-		.opt_help = N_("Audio codec [pcm mp2 mp3 aac ac3 vorb]")
-	},
-	{
-		.opt_short = 'u',
-		.opt_long = "video_codec",
-		.req_arg = 1,
-		.opt_help_arg = N_("CODEC"),
-		.opt_help = N_("Video codec [raw mjpg mpeg flv1 wmv1 mpg2 mp43 dx50 h264 vp80 theo]")
-	},
-	{
 		.opt_short = 'p',
 		.opt_long = "profile",
 		.req_arg = 1,
@@ -178,53 +114,11 @@ static opt_values_t opt_values[] =
 		.opt_help = N_("load control profile")
 	},
 	{
-		.opt_short = 'j',
-		.opt_long = "video",
-		.req_arg = 1,
-		.opt_help_arg = N_("FILENAME"),
-		.opt_help = N_("filename for captured video)")
-	},
-	{
-		.opt_short = 'i',
-		.opt_long = "image",
-		.req_arg = 1,
-		.opt_help_arg = N_("FILENAME"),
-		.opt_help = N_("filename for captured image)")
-	},
-	{
-		.opt_short = 'y',
-		.opt_long = "video_timer",
-		.req_arg = 1,
-		.opt_help_arg = N_("TIME_IN_SEC"),
-		.opt_help = N_("time (double) in sec. for video capture)")
-	},
-	{
-		.opt_short = 't',
-		.opt_long = "photo_timer",
-		.req_arg = 1,
-		.opt_help_arg = N_("TIME_IN_SEC"),
-		.opt_help = N_("time (double) in sec. between captured photos)")
-	},
-	{
-		.opt_short = 'n',
-		.opt_long = "photo_total",
-		.req_arg = 1,
-		.opt_help_arg = N_("TOTAL"),
-		.opt_help = N_("total number of captured photos)")
-	},
-	{
 		.opt_short = 'e',
 		.opt_long = "exit_on_term",
 		.req_arg = 0,
 		.opt_help_arg = "",
 		.opt_help = N_("exit app after video or image capture ends")
-	},
-	{
-		.opt_short = 'z',
-		.opt_long = "control_panel",
-		.req_arg = 0,
-		.opt_help_arg = "",
-		.opt_help = N_("Start in control panel mode")
 	},
 	{
 		.opt_short = 0,
@@ -244,25 +138,8 @@ static options_t my_options =
 	.control_panel = 0,
 	.disable_libv4l2 = 0,
 	.format = "",
-	.render = "",
-	.gui = "",
-	.audio = "",
-	.audio_device = -1, /*use default*/
 	.capture = "",
-	.video_codec = "",
-	.audio_codec = "",
-	.prof_filename = NULL,
-	.profile_name = NULL,
-	.profile_path = NULL,
-	.video_name = NULL,
-	.video_path = NULL,
-	.photo_name = NULL,
-	.photo_path = NULL,
-	.video_timer = 0,
-	.photo_timer = 0,
-	.photo_npics = 0,
 	.exit_on_term = 0,
-	.render_flag = "none",
 };
 
 /*

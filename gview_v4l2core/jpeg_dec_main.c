@@ -37,11 +37,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <turbojpeg.h>
 
 #include "colorspaces.h"
 #include "jpeg.h"
 #include "ve.h"
+#include "display.h"
 
 void set_quantization_tables(struct jpeg_t *jpeg, void *regs)
 {
@@ -123,29 +123,23 @@ void set_size(struct jpeg_t *jpeg, void *regs)
 
 static uint8_t *input_buffer = NULL;
 static uint8_t *luma_output = NULL;
-static uint8_t *chroma_output = NULL;
+static uint8_t *chroma_u_output = NULL;
+static uint8_t *chroma_v_output = NULL;
 static void* ve_regs = NULL;
-static tjhandle tj = NULL;
+static uint32_t outputs[3];
 
-void output_ppm(struct jpeg_t *jpeg, uint8_t *luma_buffer, uint8_t *chroma_buffer, uint8_t *output)
+void hw_decode_jpeg(struct jpeg_t *jpeg)
 {
-	
-	int line_stride = ((jpeg->width + 31) & ~31);
-        int output_size = line_stride * ((jpeg->height + 31) & ~31);
-	uint32_t *output_p = (uint32_t*)output;
+	int width = jpeg->width;
+	int height = jpeg->height;
 
-	// unsigned char *srcPlanes[3] = { luma_buffer, chroma_buffer, (chroma_buffer + output_size) };
-	// tjDecodeYUVPlanes(tj, srcPlanes, NULL, TJSAMP_422, output, jpeg->width, jpeg->width * 4, jpeg->height, TJPF_RGBX, 0); 
-	//
-	// memcpy(output, luma_buffer, 1920*1080);
-	// memcpy((output+1920*1080), chroma_buffer, 1920*1080);
-	output_p[0] = (uint32_t)luma_buffer;
-	output_p[1] = (uint32_t)chroma_buffer;
-	output_p[2] = ((uint32_t)chroma_buffer) + (output_size / 2);
-}
+	int v_offset = chroma_v_output - chroma_u_output;
 
-void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
-{
+	if (v_offset < 0) {
+		printf("Bad chroma V output address, is less than choma u\n");
+		return;
+	}
+
 	int input_size =(jpeg->data_len + 65535) & ~65535;
 	int line_stride = ((jpeg->width + 31) & ~31);
 	// uint8_t *input_buffer = ve_malloc(input_size);
@@ -156,7 +150,7 @@ void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
 	ve_flush_cache(input_buffer, jpeg->data_len);
 
 	writel((0x3 << 4) | 0x3, ve_regs + VE_OUTPUT_FORMAT);
-	writel((output_size / 2) | (0x2 << 30), ve_regs + 0xe8);
+	writel(v_offset | (0x2 << 30), ve_regs + 0xe8);
 	writel(output_size, ve_regs + 0xc4);
 	writel(line_stride | (line_stride << 16), ve_regs + 0xc8);
 
@@ -171,7 +165,7 @@ void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
 
 	// set output buffers (Luma / Croma)
 	writel(ve_virt2phys(luma_output), ve_regs + VE_MPEG_ROT_LUMA);
-	writel(ve_virt2phys(chroma_output), ve_regs + VE_MPEG_ROT_CHROMA);
+	writel(ve_virt2phys(chroma_u_output), ve_regs + VE_MPEG_ROT_CHROMA);
 
 	// set size
 	set_size(jpeg, ve_regs);
@@ -209,52 +203,62 @@ void hw_decode_jpeg(struct jpeg_t *jpeg, uint8_t *output)
 
 	// clean interrupt flag (??)
 	writel(0x0000c00f, ve_regs + VE_MPEG_STATUS);
-
-	ve_flush_cache(luma_output, output_size);
-	ve_flush_cache(chroma_output, output_size * 2);
-	output_ppm(jpeg, luma_output, chroma_output, output);
-
-	// ve_free(input_buffer);
-	// ve_free(luma_output);
-	// ve_free(chroma_output);
 }
 
 void hw_init(int width, int height) {
-        if (!ve_open())
+	if (!ve_open())
                 err(EXIT_FAILURE, "Can't open VE");
 
 	ve_regs = ve_get(VE_ENGINE_MPEG, 0);
 
         int input_size = ((width * height * 3) + 65535) & ~65535;
         input_buffer = ve_malloc(input_size);
-        
-	int output_size = ((width + 31) & ~31) * ((height + 31) & ~31);
+	
+	init_display(width, height);
+	
+	printf("Getting outputs\n");
 
-        luma_output = ve_malloc(output_size * 3);
-        // chroma_output = ve_malloc(output_size * 3);
-	chroma_output = luma_output + output_size;
+	get_output(&outputs[0]);
 
-	// tj = tjInitDecompress();
+	luma_output = ve_malloc(((width * height * 3) + 65535) & ~65535);
+	chroma_u_output = luma_output + (((width * height) + 65535) & ~65535);
+        chroma_v_output = chroma_u_output + width * height / 2;
+
+	printf("Allocated memory for output\n");
 }
 
 void hw_close() {
-	tjFree(tj);
 	ve_put();
 	ve_free(input_buffer);
 	ve_free(luma_output);
-	ve_free(chroma_output);
+	// ve_free(chroma_output);
 	ve_close();
+	terminate_display();
 }
 
-void hw_decode_jpeg_main(uint8_t* data, long dataLen, uint8_t* output) {
+void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
         struct jpeg_t jpeg ;
         memset(&jpeg, 0, sizeof(jpeg));
         if (!parse_jpeg(&jpeg, data, dataLen))
                 printf("ERROR: Can't parse JPEG\n");
 
-       // dump_jpeg(&jpeg);
-       // printf("hw_decode_jpeg before\n");
-       hw_decode_jpeg(&jpeg, output);
-       // printf("hw_decode_jpeg after\n");
+        int width = jpeg.width;
+        int height = jpeg.height;
+
+        // dump_jpeg(&jpeg);
+        printf("hw_decode_jpeg before\n");
+        hw_decode_jpeg(&jpeg);
+        printf("hw_decode_jpeg after\n");
+
+        printf("Will copy to display output\n");
+
+        printf("output 0 va: %p\n", outputs[0]);
+
+        if (outputs[0]) {
+        memcpy(outputs[0], luma_output, width * height);
+        memcpy(outputs[1], chroma_u_output, width * height / 2);
+        memcpy(outputs[2], chroma_v_output, width * height / 2);
+        }
+        printf("hw_decode_jpeg after\n");
 }
 

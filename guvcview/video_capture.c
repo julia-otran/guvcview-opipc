@@ -41,15 +41,13 @@
 #include <time.h>
 
 #include "gviewv4l2core.h"
-#include "gviewrender.h"
-#include "gviewencoder.h"
 #include "gview.h"
 #include "video_capture.h"
 #include "options.h"
 #include "config.h"
 #include "core_io.h"
-#include "gui.h"
 #include "../config.h"
+#include "display.h"
 
 /*flags*/
 extern int debug_level;
@@ -57,121 +55,16 @@ extern int debug_level;
 extern __MUTEX_TYPE capture_mutex;
 extern __COND_TYPE capture_cond;
 
-static int render = RENDER_SDL; /*render API*/
 static int quit = 0; /*terminate flag*/
-static int save_image = 0; /*save image flag*/
-static int save_video = 0; /*save video flag*/
-
-static uint64_t my_photo_timer = 0; /*timer count*/
-
-static uint64_t my_video_timer = 0; /*timer count*/
-static uint64_t my_video_begin_time = 0; /*first video frame ts*/
-
 static int restart = 0; /*restart flag*/
-
-static char render_caption[30]; /*render window caption*/
-
-static uint32_t my_render_mask = REND_FX_YUV_NOFILT; /*render fx filter mask*/
-
-static uint32_t my_audio_mask = AUDIO_FX_NONE; /*audio fx filter mask*/
 
 /*continues focus*/
 static int do_soft_autofocus = 0;
 /*single time focus (can happen during continues focus)*/
 static int do_soft_focus = 0;
 
-/*pointer to audio context data*/
-static audio_context_t *my_audio_ctx = NULL;
-
 /*pointer to v4l2 device handler*/
 static v4l2_dev_t *my_vd = NULL;
-
-static __THREAD_TYPE encoder_thread;
-
-static int my_encoder_status = 0;
-
-static char status_message[80];
-
-/*
- * set render flag
- * args:
- *    value - flag value
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void set_render_flag(int value)
-{
-	render = value;
-}
-
-/*
- * get render fx mask
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: render fx mask
- */
-uint32_t get_render_fx_mask()
-{
-	return my_render_mask;
-}
-
-/*
- * set render fx mask
- * args:
- *    new_mask - fx mask value
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void set_render_fx_mask(uint32_t new_mask)
-{
-	my_render_mask = new_mask;
-	/* update config */
-	config_t *my_config = config_get();
-	my_config->video_fx = my_render_mask;
-}
-
-/*
- * get audio fx mask
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: audio fx mask
- */
-uint32_t get_audio_fx_mask()
-{
-	return my_audio_mask;
-}
-
-/*
- * set audio fx mask
- * args:
- *    new_mask - new audio fx filter mask
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void set_audio_fx_mask(uint32_t new_mask)
-{
-	my_audio_mask = new_mask;
-	/* update config */
-	config_t *my_config = config_get();
-	my_config->audio_fx = my_audio_mask;
-}
 
 /*
  * set software autofocus flag
@@ -186,154 +79,6 @@ void set_audio_fx_mask(uint32_t new_mask)
 void set_soft_autofocus(int value)
 {
 	do_soft_autofocus = value;
-}
-
-/*
- * sets the save video flag
- * args:
- *    value - save_video flag value
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void video_capture_save_video(int value)
-{
-	save_video = value;
-	
-	if(debug_level > 1)
-		printf("GUVCVIEW: save video flag changed to %i\n", save_video);
-}
-
-/*
- * gets the save video flag
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: save_video flag
- */
-int video_capture_get_save_video()
-{
-	return save_video;
-}
-
-/*
- * sets the save image flag
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void video_capture_save_image()
-{
-	save_image = 1;
-}
-
-/*
- * get encoder started flag
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: encoder started flag (1 -started; 0 -not started)
- */
-int get_encoder_status()
-{
-	return my_encoder_status;
-}
-
-/*
- * stops the photo timed capture
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void stop_photo_timer()
-{
-	my_photo_timer = 0;
-	gui_set_image_capture_button_label(_("Cap. Image (I)"));
-}
-
-/*
- * checks if photo timed capture is on
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: 1 if on; 0 if off
- */
-int check_photo_timer()
-{
-	return ( (my_photo_timer > 0) ? 1 : 0 );
-}
-
-/*
- * reset video timer
- * args:
- *   none
- *
- * asserts:
- *   none
- *
- * returns: none
- */
-void reset_video_timer()
-{
-	my_video_timer = 0;
-	my_video_begin_time = 0;
-}
-
-/*
- * stops the video timed capture
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-static void stop_video_timer()
-{
-	/*
-	 * if we are saving video stop it
-	 * this also calls reset_video_timer
-	 */
-	if(video_capture_get_save_video())
-		gui_click_video_capture_button();
-
-	/*make sure the timer is reset*/
-	reset_video_timer();
-}
-
-/*
- * checks if video timed capture is on
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: 1 if on; 0 if off
- */
-int check_video_timer()
-{
-	return ( (my_video_timer > 0) ? 1 : 0 );
 }
 
 /*
@@ -379,10 +124,6 @@ void request_format_update()
  */
 int quit_callback(void *data)
 {
-	/*make sure we only call gui_close once*/
-	if(!quit)
-		gui_close();
-
 	quit = 1;
 
 	return 0;
@@ -401,11 +142,6 @@ int quit_callback(void *data)
  */
 int key_I_callback(void *data)
 {
-	gui_click_image_capture_button();
-	
-	if(debug_level > 1)
-		printf("GUVCVIEW: I key pressed\n");
-
 	return 0;
 }
 
@@ -421,10 +157,6 @@ int key_I_callback(void *data)
  */
 int key_V_callback(void *data)
 {
-	gui_click_video_capture_button(data);
-	
-	if(debug_level > 1)
-		printf("GUVCVIEW: V key pressed\n");
 
 	return 0;
 }
@@ -612,374 +344,6 @@ v4l2_dev_t *get_v4l2_device_handler()
 }
 
 /*
- * create an audio context
- * args:
- *    api - audio api
- *    device - api device index (-1 use default)
- *
- * asserts:
- *    none
- *
- * returns: pointer to audio context data
- */
-audio_context_t *create_audio_context(int api, int device)
-{
-	
-	close_audio_context();
-
-	my_audio_ctx = audio_init(api, device);
-
-	if(my_audio_ctx == NULL)
-		fprintf(stderr, "GUVCVIEW: couldn't allocate audio context\n");
-
-	return my_audio_ctx;
-}
-
-/*
- * get audio context
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: pointer to audio context data (or NULL if no audio)
- */
-audio_context_t *get_audio_context()
-{
-	if(!my_audio_ctx)
-		return NULL;
-
-	/*force a valid number of channels*/
-	if(audio_get_channels(my_audio_ctx) > 2)
-		audio_set_channels(my_audio_ctx, 2);
-
-	return my_audio_ctx;
-}
-
-/*
- * close the audio context
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void close_audio_context()
-{
-	if(my_audio_ctx != NULL)
-		audio_close(my_audio_ctx);
-
-	my_audio_ctx = NULL;
-}
-
-/*
- * audio processing loop (should run in a separate thread)
- * args:
- *    data - pointer to user data
- *
- * asserts:
- *   none
- *
- * returns: pointer to return code
- */
-static void *audio_processing_loop(void *data)
-{
-	encoder_context_t *encoder_ctx = (encoder_context_t *) data;
-
-	if(debug_level > 1)
-		printf("GUVCVIEW: audio thread (tid: %u)\n",
-			(unsigned int) syscall (SYS_gettid));
-
-	audio_context_t *audio_ctx = get_audio_context();
-	if(!audio_ctx)
-	{
-		fprintf(stderr, "GUVCVIEW: no audio context: skiping audio processing\n");
-		return ((void *) -1);
-	}
-	audio_buff_t *audio_buff = NULL;
-
-	/*start audio capture*/
-	int frame_size = encoder_get_audio_frame_size(encoder_ctx);
-
-	//if(frame_size < 1024)
-	//	frame_size = 1024;
-
-	audio_set_cap_buffer_size(audio_ctx, 
-		frame_size * audio_get_channels(audio_ctx));
-	audio_start(audio_ctx);
-	/*
-	 * alloc the buffer after audio_start
-	 * otherwise capture_buff_size may not
-	 * be correct
-	 * allocated data is big enough for float samples (32 bit)
-	 * although it may contain int16 samples (16 bit)
-	 */
-	audio_buff = audio_get_buffer(audio_ctx);
-
-	int sample_type = encoder_get_audio_sample_fmt(encoder_ctx);
-	
-	uint32_t osd_mask = render_get_osd_mask();
-
-	/*enable vu meter OSD display*/
-	if(audio_get_channels(audio_ctx) > 1)
-		osd_mask |= REND_OSD_VUMETER_STEREO;
-	else
-		osd_mask |= REND_OSD_VUMETER_MONO;
-
-	render_set_osd_mask(osd_mask);
-
-	while(video_capture_get_save_video())
-	{
-		int ret = audio_get_next_buffer(audio_ctx, audio_buff,
-				sample_type, my_audio_mask);
-
-		if(ret > 0)
-		{
-			/* 
-			 * no buffers to process
-			 * sleep a couple of milisec
-			 */
-			 struct timespec req = {
-				.tv_sec = 0,
-				.tv_nsec = 1000000};/*nanosec*/
-			 nanosleep(&req, NULL);
-		}
-		else if(ret == 0)
-		{
-			encoder_ctx->enc_audio_ctx->pts = audio_buff->timestamp;
-
-			/*OSD vu meter level*/
-			render_set_vu_level(audio_buff->level_meter);
-
-			encoder_process_audio_buffer(encoder_ctx, audio_buff->data);
-		}
-		
-	}
-
-	/*flush any delayed audio frames*/
-	encoder_flush_audio_buffer(encoder_ctx);
-
-	/*reset vu meter*/
-	audio_buff->level_meter[0] = 0;
-	audio_buff->level_meter[1] = 0;
-	render_set_vu_level(audio_buff->level_meter);
-
-	/*disable OSD vumeter*/
-	osd_mask &= ~REND_OSD_VUMETER_STEREO;
-	osd_mask &= ~REND_OSD_VUMETER_MONO;
-
-	render_set_osd_mask(osd_mask);
-
-	audio_stop(audio_ctx);
-	audio_delete_buffer(audio_buff);
-
-	return ((void *) 0);
-}
-
-/*
- * encoder loop (should run in a separate thread)
- * args:
- *    data - pointer to user data
- *
- * asserts:
- *   none
- *
- * returns: pointer to return code
- */
-static void *encoder_loop(void *data)
-{
-	my_encoder_status = 1;
-	
-	if(debug_level > 1)
-		printf("GUVCVIEW: encoder thread (tid: %u)\n",
-			(unsigned int) syscall (SYS_gettid));
-
-	/*get the audio context*/
-	audio_context_t *audio_ctx = get_audio_context();
-
-	__THREAD_TYPE encoder_audio_thread;
-
-	int channels = 0;
-	int samprate = 0;
-
-	if(audio_ctx)
-	{
-		channels = audio_get_channels(audio_ctx);
-		samprate = audio_get_samprate(audio_ctx);
-	}
-
-	if(debug_level > 0)
-		printf("GUVCVIEW: audio [channels= %i; samprate= %i] \n",
-			channels, samprate);
-
-	/*create the encoder context*/
-	encoder_context_t *encoder_ctx = encoder_init(
-		v4l2core_get_requested_frame_format(my_vd),
-		get_video_codec_ind(),
-		get_audio_codec_ind(),
-		get_video_muxer(),
-		v4l2core_get_frame_width(my_vd),
-		v4l2core_get_frame_height(my_vd),
-		v4l2core_get_fps_num(my_vd),
-		v4l2core_get_fps_denom(my_vd),
-		channels,
-		samprate);
-
-	/*store external SPS and PPS data if needed*/
-	if(encoder_ctx->video_codec_ind == 0 && /*raw - direct input*/
-		v4l2core_get_requested_frame_format(my_vd) == V4L2_PIX_FMT_H264)
-	{
-		/*request a IDR (key) frame*/
-		v4l2core_h264_request_idr(my_vd);
-
-		if(debug_level > 0)
-			printf("GUVCVIEW: storing external pps and sps data in encoder context\n");
-		encoder_ctx->h264_pps_size = v4l2core_get_h264_pps_size(my_vd);
-		if(encoder_ctx->h264_pps_size > 0)
-		{
-			encoder_ctx->h264_pps = calloc(encoder_ctx->h264_pps_size, sizeof(uint8_t));
-			if(encoder_ctx->h264_pps == NULL)
-			{
-				fprintf(stderr,"GUVCVIEW: FATAL memory allocation failure (encoder_loop): %s\n", strerror(errno));
-				exit(-1);
-			}
-			memcpy(encoder_ctx->h264_pps, v4l2core_get_h264_pps(my_vd), encoder_ctx->h264_pps_size);
-		}
-
-		encoder_ctx->h264_sps_size = v4l2core_get_h264_sps_size(my_vd);
-		if(encoder_ctx->h264_sps_size > 0)
-		{
-			encoder_ctx->h264_sps = calloc(encoder_ctx->h264_sps_size, sizeof(uint8_t));
-			if(encoder_ctx->h264_sps == NULL)
-			{
-				fprintf(stderr,"GUVCVIEW: FATAL memory allocation failure (encoder_loop): %s\n", strerror(errno));
-				exit(-1);
-			}
-			memcpy(encoder_ctx->h264_sps, v4l2core_get_h264_sps(my_vd), encoder_ctx->h264_sps_size);
-		}
-	}
-
-	uint32_t current_framerate = 0;
-	if(v4l2core_get_requested_frame_format(my_vd) == V4L2_PIX_FMT_H264)
-	{
-		/* store framerate since it may change due to scheduler*/
-		current_framerate = v4l2core_get_h264_frame_rate_config(my_vd);
-	}
-
-	char *video_filename = NULL;
-	/*get_video_[name|path] always return a non NULL value*/
-	char *name = strdup(get_video_name());
-	char *path = strdup(get_video_path());
-
-	if(get_video_sufix_flag())
-	{
-		char *new_name = add_file_suffix(path, name);
-		free(name); /*free old name*/
-		name = new_name; /*replace with suffixed name*/
-	}
-	int pathsize = strlen(path);
-	if(path[pathsize] != '/')
-		video_filename = smart_cat(path, '/', name);
-	else
-		video_filename = smart_cat(path, 0, name);
-
-	snprintf(status_message, 79, _("saving video to %s"), video_filename);
-	gui_status_message(status_message);
-
-	/*muxer initialization*/
-	encoder_muxer_init(encoder_ctx, video_filename);
-
-	/*start video capture*/
-	video_capture_save_video(1);
-
-	int treshold = 102400; /*100 Mbytes*/
-	int64_t last_check_pts = 0; /*last pts when disk supervisor called*/
-
-	/*start audio processing thread*/
-	if(encoder_ctx->enc_audio_ctx != NULL && audio_get_channels(audio_ctx) > 0)
-	{
-		if(debug_level > 1)
-			printf("GUVCVIEW: starting encoder audio thread\n");
-		
-		int ret = __THREAD_CREATE(&encoder_audio_thread, audio_processing_loop, (void *) encoder_ctx);
-		
-		if(ret)
-			fprintf(stderr, "GUVCVIEW: encoder audio thread creation failed (%i)\n", ret);
-		else if(debug_level > 2)
-			printf("GUVCVIEW: created audio encoder thread with tid: %u\n", 
-				(unsigned int) encoder_audio_thread);
-	}
-
-	while(video_capture_get_save_video())
-	{
-		/*process the video buffer*/
-		if(encoder_process_next_video_buffer(encoder_ctx) > 0)
-		{
-			/* 
-			 * no buffers to process
-			 * sleep a couple of milisec
-			 */
-			 struct timespec req = {
-				.tv_sec = 0,
-				.tv_nsec = 1000000};/*nanosec*/
-			 nanosleep(&req, NULL);
-			 
-		}	
-
-		/*disk supervisor*/
-		if(encoder_ctx->enc_video_ctx->pts - last_check_pts > 2 * NSEC_PER_SEC)
-		{
-			last_check_pts = encoder_ctx->enc_video_ctx->pts;
-
-			if(!encoder_disk_supervisor(treshold, path))
-			{
-				/*stop capture*/
-				gui_set_video_capture_button_status(0);
-			}
-		}
-	}
-	
-	if(debug_level > 1)
-		printf("GUVCVIEW: video capture terminated - flushing video buffers\n");
-	/*flush the video buffer*/
-	encoder_flush_video_buffer(encoder_ctx);
-	if(debug_level > 1)
-		printf("GUVCVIEW: flushing video buffers - done\n");
-
-	/*make sure the audio processing thread has stopped*/
-	if(encoder_ctx->enc_audio_ctx != NULL && audio_get_channels(audio_ctx) > 0)
-	{
-		if(debug_level > 1)
-			printf("GUVCVIEW: join encoder audio thread\n");
-		__THREAD_JOIN(encoder_audio_thread);
-	}
-
-	/*close the muxer*/
-	encoder_muxer_close(encoder_ctx);
-
-	/*close the encoder context (clean up)*/
-	encoder_close(encoder_ctx);
-
-	if(v4l2core_get_requested_frame_format(my_vd) == V4L2_PIX_FMT_H264)
-	{
-		/* restore framerate */
-		v4l2core_set_h264_frame_rate_config(my_vd, current_framerate);
-	}
-
-	/*clean strings*/
-	free(video_filename);
-	free(path);
-	free(name);
-
-	my_encoder_status = 0;
-
-	return ((void *) 0);
-}
-
-/*
  * capture loop (should run in a separate thread)
  * args:
  *    data - pointer to user data (options data)
@@ -992,15 +356,6 @@ static void *encoder_loop(void *data)
 void *capture_loop(void *data)
 {
 	__LOCK_MUTEX(&capture_mutex);
-	capture_loop_data_t *cl_data = (capture_loop_data_t *) data;
-	options_t *my_options = (options_t *) cl_data->options;
-	config_t *my_config = (config_t *) cl_data->config;
-
-	long ms;
-	struct timespec timesp;
-
-	uint64_t my_last_photo_time = 0; /*timer count*/
-	int my_photo_npics = 0;/*no npics*/
 
 	/*reset quit flag*/
 	quit = 0;
@@ -1011,54 +366,6 @@ void *capture_loop(void *data)
 
 	int ret = 0;
 	
-	int render_flags = 0;
-	
-	if (strcasecmp(my_options->render_flag, "full") == 0)
-		render_flags = 1;
-	else if (strcasecmp(my_options->render_flag, "max") == 0)
-		render_flags = 2;
-	
-	render_set_verbosity(debug_level);
-
-	render_set_crosshair_color(my_config->crosshair_color);
-	
-	if(render_init(
-		render,
-		v4l2core_get_frame_width(my_vd),
-		v4l2core_get_frame_height(my_vd),
-		render_flags) < 0)
-		render = RENDER_NONE;
-	else
-	{
-		render_set_event_callback(EV_QUIT, &quit_callback, NULL);
-		render_set_event_callback(EV_KEY_V, &key_V_callback, NULL);
-		render_set_event_callback(EV_KEY_I, &key_I_callback, NULL);
-		render_set_event_callback(EV_KEY_UP, &key_UP_callback, NULL);
-		render_set_event_callback(EV_KEY_DOWN, &key_DOWN_callback, NULL);
-		render_set_event_callback(EV_KEY_LEFT, &key_LEFT_callback, NULL);
-		render_set_event_callback(EV_KEY_RIGHT, &key_RIGHT_callback, NULL);
-	}
-
-	/*add a video capture timer*/
-	if(my_options->video_timer > 0)
-	{
-		my_video_timer = NSEC_PER_SEC * my_options->video_timer;
-		my_video_begin_time = v4l2core_time_get_timestamp(); /*timer count*/
-		/*if are not saving video start it*/
-		if(!get_encoder_status())
-			start_encoder_thread();
-	}
-
-	/*add a photo capture timer*/
-	if(my_options->photo_timer > 0)
-	{
-		my_photo_timer = NSEC_PER_SEC * my_options->photo_timer;
-		my_last_photo_time = v4l2core_time_get_timestamp(my_vd); /*timer count*/
-	}
-
-	if(my_options->photo_npics > 0)
-		my_photo_npics = my_options->photo_npics;
-
 	v4l2core_start_stream(my_vd);
 
 	v4l2_frame_buff_t *frame = NULL; //pointer to frame buffer
@@ -1072,9 +379,6 @@ void *capture_loop(void *data)
 	{
 		if(restart)
 		{
-			int current_width = v4l2core_get_frame_width(my_vd);
-			int current_height = v4l2core_get_frame_height(my_vd);
-
 			restart = 0; /*reset*/
 			v4l2core_stop_stream(my_vd);
 
@@ -1096,37 +400,7 @@ void *capture_loop(void *data)
 				{
 					fprintf(stderr, "GUCVIEW: also could not set the first listed stream format\n");
 
-					gui_error("Guvcview error", "could not start a video stream in the device", 1);
-
 					return ((void *) -1);
-				}
-			}
-
-			if((current_width != v4l2core_get_frame_width(my_vd)) ||
-				current_height != v4l2core_get_frame_height(my_vd))
-			{
-				if(debug_level > 1)
-					printf("GUVCVIEW: resolution changed, reseting render\n");
-
-				/*close render*/
-				render_close();
-
-				/*restart the render with new format*/
-				if(render_init(
-					render,
-					v4l2core_get_frame_width(my_vd),
-					v4l2core_get_frame_height(my_vd),
-					render_flags) < 0)
-					render = RENDER_NONE;
-				else
-				{
-					render_set_event_callback(EV_QUIT, &quit_callback, NULL);
-					render_set_event_callback(EV_KEY_V, &key_V_callback, NULL);
-					render_set_event_callback(EV_KEY_I, &key_I_callback, NULL);
-					render_set_event_callback(EV_KEY_UP, &key_UP_callback, NULL);
-					render_set_event_callback(EV_KEY_DOWN, &key_DOWN_callback, NULL);
-					render_set_event_callback(EV_KEY_LEFT, &key_LEFT_callback, NULL);
-					render_set_event_callback(EV_KEY_RIGHT, &key_RIGHT_callback, NULL);
 				}
 			}
 
@@ -1140,16 +414,8 @@ void *capture_loop(void *data)
 
 		}
 
-		/*get the frame from v4l2 core*/
-		// clock_gettime(CLOCK_REALTIME, &timesp);
-		// ms = round(timesp.tv_nsec / 1.0e6);
-		// printf("\nGETTING frame %i\n", ms);
 
 		frame = v4l2core_get_decoded_frame(my_vd);
-
-		// clock_gettime(CLOCK_REALTIME, &timesp);
-                // ms = round(timesp.tv_nsec / 1.0e6);
-		// printf("GOT frame %i\n", ms);
 
 		if( frame != NULL)
 		{
@@ -1165,8 +431,6 @@ void *capture_loop(void *data)
 			}
 
 			count++;
-			// render_set_caption(render_caption);
-			render_frame(frame->yuv_frame);
 
 			/*we are done with the frame buffer release it*/
 			v4l2core_release_frame(my_vd, frame);
@@ -1174,57 +438,8 @@ void *capture_loop(void *data)
 	}
 
 	v4l2core_stop_stream(my_vd);
-	
-	/*if we are still saving video then stop it*/
-	if(video_capture_get_save_video())
-		stop_encoder_thread();
-
-	render_close();
+	v4l2core_close_dev(my_vd);
 
 	return ((void *) 0);
 }
 
-/*
- * start the encoder thread
- * args:
- *   data - pointer to user data
- *
- * asserts:
- *   none
- *
- * returns: error code
- */
-int start_encoder_thread(void *data)
-{
-	int ret = __THREAD_CREATE(&encoder_thread, encoder_loop, data);
-	
-	if(ret)
-		fprintf(stderr, "GUVCVIEW: encoder thread creation failed (%i)\n", ret);
-	else if(debug_level > 2)
-		printf("GUVCVIEW: created encoder thread with tid: %u\n", 
-			(unsigned int) encoder_thread);
-
-	return ret;
-}
-
-/*
- * stop the encoder thread
- * args:
- *   none
- *
- * asserts:
- *   none
- *
- * returns: error code
- */
-int stop_encoder_thread()
-{
-	video_capture_save_video(0);
-
-	__THREAD_JOIN(encoder_thread);
-
-	if(debug_level > 1)
-		printf("GUVCVIEW: encoder thread terminated and joined\n");
-			
-	return 0;
-}

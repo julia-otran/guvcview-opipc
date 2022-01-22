@@ -1,9 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
 SUBDIRS = gview_v4l2core \
-		  gview_audio \
-		  gview_render \
-		  gview_encoder \
           guvcview \
           data \
           po \
@@ -11,19 +8,13 @@ SUBDIRS = gview_v4l2core \
 
 #Distribute these directories:
 DIST_SUBDIRS =  gview_v4l2core \
-				gview_audio \
-				gview_render \
-				gview_encoder \
 				guvcview \
 				data \
 				po \
 				po/gview_v4l2core
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = pkgconfig/libgviewv4l2core.pc \
-				 pkgconfig/libgviewaudio.pc \
-				 pkgconfig/libgviewrender.pc \
-				 pkgconfig/libgviewencoder.pc
+pkgconfig_DATA = pkgconfig/libgviewv4l2core.pc
 
 ACLOCAL_AMFLAGS = -I m4
 
@@ -49,12 +40,6 @@ update-po: check-gettext
 	echo "data/guvcview.appdata.xml.in.in" >> po/POTFILES.in.2; \
 	echo "#gview_v4l2core lib" >> po/POTFILES.in.2; \
 	grep '_(' `find gview_v4l2core/ -name "*c"` | cut -d: -f1 | sort -u >> po/POTFILES.in.2 ; \
-	echo "#gview_render lib" >> po/POTFILES.in.2; \
-	grep '_(' `find gview_render/ -name "*c"` | cut -d: -f1 | sort -u >> po/POTFILES.in.2 ; \
-	echo "#gview_audio lib" >> po/POTFILES.in.2; \
-	grep '_(' `find gview_audio/ -name "*c"` | cut -d: -f1 | sort -u >> po/POTFILES.in.2 ; \
-	echo "#gview_encoder" >> po/POTFILES.in.2; \
-	grep '_(' `find gview_encoder/ -name "*c"` | cut -d: -f1 | sort -u >> po/POTFILES.in.2 ; \
 	echo "#guvcview" >> po/POTFILES.in.2; \
 	grep '_(' `find guvcview/ -name "*c"` | cut -d: -f1 | sort -u >> po/POTFILES.in.2 ; \
 	if diff po/POTFILES.in po/POTFILES.in.2 >/dev/null 2>&1 ; then \

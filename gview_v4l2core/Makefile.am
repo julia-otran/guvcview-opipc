@@ -23,7 +23,8 @@ c_sources = v4l2_core.c \
 			save_image_png.c \
 			jpeg.c \
 			ve.c \
-			jpeg_dec_main.c
+			jpeg_dec_main.c \
+			display.c
 
 
 #Install the headers in a versioned directory - guvcvideo-x/libgviewv4l2core:

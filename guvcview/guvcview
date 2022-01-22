@@ -37,7 +37,7 @@ relink_command=""
 if test "$libtool_install_magic" = "%%%MAGIC variable%%%"; then
   # install mode needs the following variables:
   generated_by_libtool_version='2.4.6'
-  notinst_deplibs=' ../gview_v4l2core/libgviewv4l2core.la ../gview_render/libgviewrender.la ../gview_audio/libgviewaudio.la ../gview_encoder/libgviewencoder.la'
+  notinst_deplibs=' ../gview_v4l2core/libgviewv4l2core.la'
 else
   # When we are sourced in execute mode, $file and $ECHO are already set.
   if test "$libtool_execute_magic" != "%%%MAGIC variable%%%"; then
@@ -188,7 +188,7 @@ func_exec_program ()
 
   if test -f "$progdir/$program"; then
     # Add our own library path to LD_LIBRARY_PATH
-    LD_LIBRARY_PATH="/home/orangepi/guvcview/gview_v4l2core/.libs:/home/orangepi/guvcview/gview_render/.libs:/home/orangepi/guvcview/gview_audio/.libs:/home/orangepi/guvcview/gview_encoder/.libs:$LD_LIBRARY_PATH"
+    LD_LIBRARY_PATH="/home/orangepi/guvcview/gview_v4l2core/.libs:$LD_LIBRARY_PATH"
 
     # Some systems cannot cope with colon-terminated LD_LIBRARY_PATH
     # The second colon is a workaround for a bug in BeOS R4 sed
