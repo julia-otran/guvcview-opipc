@@ -125,6 +125,11 @@ static uint8_t *input_buffer = NULL;
 static uint8_t *luma_output = NULL;
 static uint8_t *chroma_u_output = NULL;
 static uint8_t *chroma_v_output = NULL;
+
+static uint8_t *luma_virt_output = NULL;
+static uint8_t *chroma_u_virt_output = NULL;
+static uint8_t *chroma_v_virt_output = NULL;
+
 static void* ve_regs = NULL;
 static uint32_t outputs[3];
 
@@ -164,8 +169,8 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	set_format(jpeg, ve_regs);
 
 	// set output buffers (Luma / Croma)
-	writel(ve_virt2phys(luma_output), ve_regs + VE_MPEG_ROT_LUMA);
-	writel(ve_virt2phys(chroma_u_output), ve_regs + VE_MPEG_ROT_CHROMA);
+	writel(luma_output, ve_regs + VE_MPEG_ROT_LUMA);
+	writel(chroma_u_output, ve_regs + VE_MPEG_ROT_CHROMA);
 
 	// set size
 	set_size(jpeg, ve_regs);
@@ -212,7 +217,7 @@ void hw_init(int width, int height) {
 	ve_regs = ve_get(VE_ENGINE_MPEG, 0);
 
         int input_size = ((width * height * 3) + 65535) & ~65535;
-        input_buffer = ve_malloc(input_size);
+        input_buffer = ve_malloc(input_size, 1);
 	
 	init_display(width, height);
 	
@@ -220,11 +225,15 @@ void hw_init(int width, int height) {
 
 	get_output(&outputs[0]);
 
-	luma_output = ve_malloc(((width * height * 3) + 65535) & ~65535);
-	chroma_u_output = luma_output + (((width * height) + 65535) & ~65535);
-        chroma_v_output = chroma_u_output + width * height / 2;
+	luma_virt_output = ve_malloc(input_size, 0);
+	chroma_u_virt_output = luma_virt_output + (((width * height) + 65535) & ~65535);
+	chroma_v_virt_output = chroma_u_virt_output + (((width * height / 2) + 65535) & ~65535);
 
-	printf("Allocated memory for output\n");
+	luma_output = ve_virt2phys(luma_virt_output);
+	chroma_u_output = ve_virt2phys(chroma_u_virt_output);
+	chroma_v_output = ve_virt2phys(chroma_v_virt_output);
+
+	printf("Allocated memory for output %x %x %x\n", luma_output, chroma_u_output, chroma_v_output);
 }
 
 void hw_close() {
@@ -242,23 +251,15 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
         if (!parse_jpeg(&jpeg, data, dataLen))
                 printf("ERROR: Can't parse JPEG\n");
 
-        int width = jpeg.width;
-        int height = jpeg.height;
-
-        // dump_jpeg(&jpeg);
-        printf("hw_decode_jpeg before\n");
         hw_decode_jpeg(&jpeg);
-        printf("hw_decode_jpeg after\n");
 
-        printf("Will copy to display output\n");
+	int w = jpeg.width;
+	int h = jpeg.height;
 
-        printf("output 0 va: %p\n", outputs[0]);
-
-        if (outputs[0]) {
-        memcpy(outputs[0], luma_output, width * height);
-        memcpy(outputs[1], chroma_u_output, width * height / 2);
-        memcpy(outputs[2], chroma_v_output, width * height / 2);
-        }
-        printf("hw_decode_jpeg after\n");
+	if (outputs[0] && outputs[1] && outputs[2]) {
+		memcpy(outputs[0], luma_virt_output, w * h);
+		memcpy(outputs[1], chroma_u_virt_output, w * h / 2);
+		memcpy(outputs[2], chroma_v_virt_output, w * h / 2);
+	}
 }
 

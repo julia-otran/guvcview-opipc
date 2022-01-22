@@ -170,7 +170,7 @@ void ve_put(void)
 	// pthread_mutex_unlock(&ve.device_lock);
 }
 
-void *ve_malloc(int size)
+void *ve_malloc(int size, int write)
 {
 	if (ve.fd == -1)
 		return NULL;
@@ -201,7 +201,13 @@ void *ve_malloc(int size)
 
 	int left_size = best_chunk->size - size;
 
-	addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, ve.fd, best_chunk->phys_addr + PAGE_OFFSET);
+	int prot = PROT_READ;
+
+	if (write) {
+		prot = prot | PROT_WRITE;
+	}
+
+	addr = mmap(NULL, size, prot, MAP_SHARED, ve.fd, best_chunk->phys_addr + PAGE_OFFSET);
 	if (addr == MAP_FAILED)
 	{
 		addr = NULL;
