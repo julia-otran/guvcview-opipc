@@ -126,10 +126,6 @@ static uint8_t *luma_output = NULL;
 static uint8_t *chroma_u_output = NULL;
 static uint8_t *chroma_v_output = NULL;
 
-static uint8_t *luma_virt_output = NULL;
-static uint8_t *chroma_u_virt_output = NULL;
-static uint8_t *chroma_v_virt_output = NULL;
-
 static void* ve_regs = NULL;
 static uint32_t outputs[3];
 
@@ -139,6 +135,11 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	int height = jpeg->height;
 
 	int v_offset = chroma_v_output - chroma_u_output;
+
+	if (luma_output == 0 || chroma_u_output == 0 || v_offset == 0) {
+		printf("Bad output addresses. skipping decode.\n");
+		return;
+	}
 
 	if (v_offset < 0) {
 		printf("Bad chroma V output address, is less than choma u\n");
@@ -169,8 +170,8 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	set_format(jpeg, ve_regs);
 
 	// set output buffers (Luma / Croma)
-	writel(luma_output, ve_regs + VE_MPEG_ROT_LUMA);
-	writel(chroma_u_output, ve_regs + VE_MPEG_ROT_CHROMA);
+	writel(ve_virt2phys(luma_output), ve_regs + VE_MPEG_ROT_LUMA);
+	writel(ve_virt2phys(chroma_u_output), ve_regs + VE_MPEG_ROT_CHROMA);
 
 	// set size
 	set_size(jpeg, ve_regs);
@@ -218,20 +219,28 @@ void hw_init(int width, int height) {
 
         int input_size = ((width * height * 3) + 65535) & ~65535;
         input_buffer = ve_malloc(input_size, 1);
-	
+
+	printf("input_buffer virtual addr %x\n", input_buffer);
+	printf("input buffer phys addr %x\n", ve_virt2phys(input_buffer));
+
 	init_display(width, height);
 	
 	printf("Getting outputs\n");
 
 	get_output(&outputs[0]);
 
-	luma_virt_output = ve_malloc(input_size, 0);
-	chroma_u_virt_output = luma_virt_output + (((width * height) + 65535) & ~65535);
-	chroma_v_virt_output = chroma_u_virt_output + (((width * height / 2) + 65535) & ~65535);
+	/*
+	luma_output = outputs[0] + addr_diff;
+	chroma_u_output = outputs[1] + addr_diff;
+	chroma_v_output = outputs[2] + addr_diff;
 
-	luma_output = ve_virt2phys(luma_virt_output);
-	chroma_u_output = ve_virt2phys(chroma_u_virt_output);
-	chroma_v_output = ve_virt2phys(chroma_v_virt_output);
+	*/
+
+	luma_output = ve_malloc(input_size, 0);
+	chroma_u_output = luma_output + (((width * height) + 65535) & ~65535);
+	chroma_v_output = chroma_u_output + width * height / 2;
+
+	printf("Luma output %x\n", luma_output);
 
 	printf("Allocated memory for output %x %x %x\n", luma_output, chroma_u_output, chroma_v_output);
 }
@@ -253,13 +262,8 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
 
         hw_decode_jpeg(&jpeg);
 
-	int w = jpeg.width;
-	int h = jpeg.height;
-
-	if (outputs[0] && outputs[1] && outputs[2]) {
-		memcpy(outputs[0], luma_virt_output, w * h);
-		memcpy(outputs[1], chroma_u_virt_output, w * h / 2);
-		memcpy(outputs[2], chroma_v_virt_output, w * h / 2);
-	}
+	memcpy(outputs[0], luma_output, jpeg.width * jpeg.height);
+	memcpy(outputs[1], chroma_u_output, jpeg.width * jpeg.height / 2);
+	memcpy(outputs[2], chroma_v_output, jpeg.width * jpeg.height / 2);
 }
 

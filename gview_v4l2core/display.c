@@ -1,7 +1,6 @@
 #include <drm/drm.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_mode.h>
-#include <drm/lima_drm.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 #include <sys/types.h>
@@ -11,142 +10,161 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include <drm/sun4i_drm.h>
+
 #include "display.h"
 
 #define PAGE_SIZE sysconf(_SC_PAGESIZE)
 
-static drm_magic_t drm_magic;
+#define VIRT_TO_PHYS (0xc0000000)
+
 static uint32_t data_input[3];
 
 static uint32_t buf_id;
 static int drm_fd;
-static int dri_fd;
+static int buf_fd;
 
-static struct drm_lima_ctx_create ctx;
+static struct drm_sun4i_gem_create data;
 
-static struct drm_lima_gem_create data_y;
-static struct drm_lima_gem_create data_u;
-static struct drm_lima_gem_create data_v;
-
-static drmModePlane *current_plane;
-
-static uint32_t old_plane_fb_id;
+static drmModePlane *old_plane;
+static drmModePlane *new_plane;
+static drmModeCrtc *crtc;
 
 void init_display(int width, int height) {
 	printf("Openning display\n");
 
 	int err, i;
 
-	drm_fd = drmOpen("lima", NULL);
-	dri_fd = open("/dev/dri/card0", O_RDWR);
+	drm_fd = drmOpen("sun4i-drm", NULL);
 
-	drmVersion *ver = drmGetVersion(dri_fd);
+	drmVersion *ver = drmGetVersion(drm_fd);
 	printf("driver name: %s\n", ver->name);
-
-        drmGetMagic(drm_fd, &drm_magic);
-        err = drmAuthMagic(drm_fd, drm_magic);
-
-	printf("AuthMagic returned: %i\n", err);
 
 	printf("drm_fd %x\n", drm_fd);
 
-	drmIoctl(drm_fd, DRM_IOCTL_LIMA_CTX_CREATE, &ctx);
+	err = drmSetMaster(drm_fd);
 
-	drmSetClientCap(dri_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+	if (err) {
+		printf("drm set master failed! %i\n", err);
+	}
+
+	drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+
+	drmModeRes *resources = drmModeGetResources(drm_fd);
 
         drmModePlaneRes *plane_res = NULL;
         drmModePlane *plane = NULL;
 
-        plane_res = drmModeGetPlaneResources(dri_fd);
+        plane_res = drmModeGetPlaneResources(drm_fd);
 
         if (plane_res) {
                 for (i = 0; i < plane_res->count_planes; i++) {
-                        plane = drmModeGetPlane(dri_fd, plane_res->planes[i]);
+                        plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
                         if (plane && plane->fb_id) {
                                 break;
                         } else if (plane) {
                                 drmModeFreePlane(plane);
                         }
                 }
-
-                drmModeFreePlaneResources(plane_res);
         } else {
                 printf("cannot find plane_res\n");
         }
 
-        current_plane = plane;
-
         if (plane) {
-                old_plane_fb_id = plane->fb_id;
+                old_plane = plane;
+		printf("Current CRTC: %i\n", plane->crtc_id);
         } else {
                 printf("No plane found!\n");
-                old_plane_fb_id = 0;
+                old_plane = NULL;
         }
 
-	data_y.size = ((width * height) + PAGE_SIZE) & ~PAGE_SIZE;
-	data_y.flags = 0;
-	data_y.handle = 0;
-	data_y.pad = 0;
+	int j;
 
-	err = drmIoctl(drm_fd, DRM_IOCTL_LIMA_GEM_CREATE, &data_y);
+	crtc = drmModeGetCrtc(drm_fd, plane->crtc_id);
 
-	printf("DRM_IOCTL_LIMA_GEM_CREATE output %i\n", err);
+	new_plane = NULL;
 
-	data_u.size = ((width * height / 2) + PAGE_SIZE) & ~PAGE_SIZE;
-        data_u.flags = 0;
-        data_u.handle = 0;
-	data_u.pad = 0;
+	printf("count planes %i\n", plane_res->count_planes);
 
-	drmIoctl(drm_fd, DRM_IOCTL_LIMA_GEM_CREATE, &data_u);
+	for (i = 0; i < plane_res->count_planes; i++) {
+		plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
 
-        data_v.size = ((width * height / 2) + PAGE_SIZE) & ~PAGE_SIZE;
-        data_v.flags = 0;
-        data_v.handle = 0;
-	data_v.pad = 0;
+		if (plane) {
+			printf("Count formats %i\n", plane->count_formats);
 
-        drmIoctl(drm_fd, DRM_IOCTL_LIMA_GEM_CREATE, &data_v);
+			for (j = 0; j < plane->count_formats; j++) {
+				if (plane->formats[j] == DRM_FORMAT_YUV422) {
+					new_plane = plane;
+				}
+			}
 
-        struct drm_lima_gem_info info_y;
-        struct drm_lima_gem_info info_u;
-        struct drm_lima_gem_info info_v;
 
-        info_y.handle = data_y.handle;
-        info_u.handle = data_u.handle;
-        info_v.handle = data_v.handle;
+			if (new_plane) {
+				break;
+			} else {
+				drmModeFreePlane(plane);
+			}
+		}
+	}
 
-        drmIoctl(drm_fd, DRM_IOCTL_LIMA_GEM_INFO, &info_y);
-        drmIoctl(drm_fd, DRM_IOCTL_LIMA_GEM_INFO, &info_u);
-        drmIoctl(drm_fd, DRM_IOCTL_LIMA_GEM_INFO, &info_v);
+	drmModeFreePlaneResources(plane_res);
 
-        printf("info_y va %x\n", info_y.va);
-        printf("info_y offset %llx\n", info_y.offset);
+	if (!new_plane) {
+		printf("Failed to find plane with format YUV422\n");
+		return;
+	}
 
-        const uint32_t bo_handles[4] = { data_y.handle, data_u.handle, data_v.handle, 0 };
+	uint32_t size_page_aligned = ((width * height) + PAGE_SIZE) & ~PAGE_SIZE;
+	uint32_t u_offset = size_page_aligned;
+	uint32_t v_offset = u_offset + (width * height / 2);
+	uint32_t total_size = v_offset + (width * height / 2);
+
+	data.size = (total_size + PAGE_SIZE) & ~PAGE_SIZE;
+	data.flags = 0;
+	data.handle = 0;
+
+	err = drmIoctl(drm_fd, DRM_IOCTL_SUN4I_GEM_CREATE, &data);
+
+	printf("DRM_IOCTL_SUN4I_GEM_CREATE output %i\n", err);
+
+        const uint32_t bo_handles[4] = { data.handle, data.handle, data.handle, 0 };
         const uint32_t pitches[4] = { width, width / 2, width / 2, 0 };
-        const uint32_t offsets[4] = { 0, 0, 0, 0 };
-
-        printf("data_y handle %x \n", data_y.handle);
+        const uint32_t offsets[4] = { 0, u_offset, v_offset, 0 };
 
         printf("Adding FB2\n");
 
 	buf_id = 0;
 
-	drmSetMaster(dri_fd);
-
-        err = drmModeAddFB2(dri_fd, width, height, DRM_FORMAT_YUV422, bo_handles, pitches, offsets, &buf_id, 0);
+        err = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_YUV422, bo_handles, pitches, offsets, &buf_id, 0);
 
 	printf("Add FB2 result %i\n", err);
 
-	data_input[0] = mmap(NULL, data_y.size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_fd, info_y.offset);
+	buf_fd = 0;
 
-	data_input[1] = mmap(NULL, data_u.size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_fd, info_u.offset);
+	err = drmPrimeHandleToFD(drm_fd, data.handle, DRM_RDWR, &buf_fd);
 
-	data_input[2] = mmap(NULL, data_v.size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_fd, info_v.offset);
+	printf("Prime handle to FD result %i\n", err);
+
+	void *addr = mmap(0, data.size, PROT_WRITE, MAP_SHARED, buf_fd, 0);
+
+	printf("mmap addr: %x\n", addr);
+
+	memset(addr, 100, data.size);
+
+	data_input[0] = addr;
+	data_input[1] = addr + u_offset;
+	data_input[2] = addr + v_offset;
 
 	printf("Memory mapped\n");
 
-	if (buf_id) {
-		drmModeSetPlane(dri_fd, plane->plane_id, plane->crtc_id, buf_id, 0, 0, 0, width, height, 0, 0, width, height); 
+	printf("Will set plane\n");
+
+	if (buf_id && new_plane) {
+		err = drmModeSetPlane(drm_fd, old_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		printf("Clear plane crtc %i\n", err);
+
+		err = drmModeSetPlane(drm_fd, new_plane->plane_id, crtc->crtc_id, buf_id, 0, crtc->x, crtc->y, crtc->width, crtc->height, 0, 0, width << 16, height << 16); 
+		printf("drm set plane %i\n", err);
 	} else {
 		printf("Skipped set plane due to empty buf_id\n");
 	}
@@ -158,22 +176,25 @@ void terminate_display()
 {
 	printf("Closing display\n");
 
-	if (current_plane) {
-		if (old_plane_fb_id) {
-		    drmModeSetPlane(dri_fd, current_plane->plane_id, current_plane->crtc_id, old_plane_fb_id, 0, 0, 0, 1920, 1080, 0, 0, 1920, 1080);
-		}
-
-		drmModeFreePlane(current_plane);
+	if (new_plane) {
+		drmModeSetPlane(drm_fd, new_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		drmModeFreePlane(new_plane);
 	}
 
-	struct drm_lima_ctx_free ctx_free;
-	ctx_free.id = ctx.id;
-	ctx_free._pad = 0;
+	if (old_plane) {
 
-	drmModeRmFB(drm_fd, buf_id);
-	drmIoctl(drm_fd, DRM_IOCTL_LIMA_CTX_FREE, &ctx_free);
+		drmModeSetPlane(drm_fd, old_plane->plane_id, crtc->crtc_id, old_plane->fb_id, 0, crtc->x, crtc->y, crtc->width, crtc->height, old_plane->x, old_plane->y, crtc->width, crtc->height);
+		drmModeFreePlane(old_plane);
+	}
+
+	drmModeFreeCrtc(crtc);
+
+	if (buf_id) {
+		drmModeRmFB(drm_fd, buf_id);
+	}
+
+	drmDropMaster(drm_fd);
 	drmClose(drm_fd);
-	close(dri_fd);
 
 }
 
