@@ -29,6 +29,8 @@ int ve_wait(int timeout);
 void *ve_get(int engine, uint32_t flags);
 void ve_put(void);
 
+void* ve_get_dma_vaddr(int dma_fd);
+
 void *ve_malloc(int size, int write);
 void ve_free(void *ptr);
 uint32_t ve_virt2phys(void *ptr);

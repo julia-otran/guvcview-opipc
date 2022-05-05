@@ -53,7 +53,9 @@ enum IOCTL_CMD
 	IOCTL_ENGINE_CHECK_DELAY,
 	IOCTL_GET_IC_VER,
 	IOCTL_ADJUST_AVS2_ABS,
-	IOCTL_FLUSH_CACHE
+	IOCTL_FLUSH_CACHE,
+
+	IOCTL_GET_DMA_VADDR = 0x510,
 };
 
 struct ve_info
@@ -108,6 +110,8 @@ int ve_open(void)
 	ve.first_memchunk.phys_addr = info.reserved_mem - PAGE_OFFSET;
 	ve.first_memchunk.size = info.reserved_mem_size;
 
+	printf("Memory for cedar; addr %x size %i", info.reserved_mem, info.reserved_mem_size);
+
 	ioctl(ve.fd, IOCTL_ENGINE_REQ, 0);
 	ioctl(ve.fd, IOCTL_ENABLE_VE, 0);
 	ioctl(ve.fd, IOCTL_SET_VE_FREQ, 320);
@@ -141,6 +145,10 @@ void ve_close(void)
 	ve.fd = -1;
 }
 
+void* ve_get_dma_vaddr(int dma_fd) {
+	return (void*) ioctl(ve.fd, IOCTL_GET_DMA_VADDR, dma_fd);
+}
+
 int ve_get_version(void)
 {
 	return ve.version;
@@ -172,8 +180,10 @@ void ve_put(void)
 
 void *ve_malloc(int size, int write)
 {
-	if (ve.fd == -1)
+	if (ve.fd == -1) {
+		printf("No VE FD\n");
 		return NULL;
+	}
 
 	/*
 	if (pthread_rwlock_wrlock(&ve.memory_lock))
@@ -196,8 +206,10 @@ void *ve_malloc(int size, int write)
 		}
 	}
 
-	if (!best_chunk)
+	if (!best_chunk) {
+		printf("No chunks available\n");
 		goto out;
+	}
 
 	int left_size = best_chunk->size - size;
 
@@ -208,8 +220,9 @@ void *ve_malloc(int size, int write)
 	}
 
 	addr = mmap(NULL, size, prot, MAP_SHARED, ve.fd, best_chunk->phys_addr + PAGE_OFFSET);
-	if (addr == MAP_FAILED)
+	if (addr == MAP_FAILED || addr == NULL)
 	{
+		printf("MMap returned map failed\n");
 		addr = NULL;
 		goto out;
 	}

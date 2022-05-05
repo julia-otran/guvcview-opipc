@@ -42,7 +42,7 @@
 #include "jpeg_decoder.h"
 #include "gview.h"
 #include "../config.h"
-#include "jpeg_dec_main.h";
+#include "jpeg_dec_main.h"
 
 extern int verbosity;
 
@@ -108,7 +108,6 @@ int jpeg_decode(uint8_t *out_buf, uint8_t *in_buf, int size)
 	/*asserts*/
 	assert(jpeg_ctx != NULL);
 	assert(in_buf != NULL);
-	assert(out_buf != NULL);
 
 
 	hw_decode_jpeg_main(in_buf, size, out_buf);

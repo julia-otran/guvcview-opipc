@@ -9,7 +9,6 @@ c_sources = v4l2_core.c \
 			v4l2_controls.c \
 			v4l2_devices.c \
 			v4l2_xu_ctrls.c \
-			uvc_h264.c \
 			core_time.c \
 			frame_decoder.c \
 			colorspaces.c \
@@ -17,14 +16,11 @@ c_sources = v4l2_core.c \
 			soft_autofocus.c \
 			dct.c \
 			control_profile.c \
-			save_image.c \
-			save_image_jpeg.c \
-			save_image_bmp.c \
-			save_image_png.c \
 			jpeg.c \
 			ve.c \
 			jpeg_dec_main.c \
-			display.c
+			display.c \
+			memory.c
 
 
 #Install the headers in a versioned directory - guvcvideo-x/libgviewv4l2core:

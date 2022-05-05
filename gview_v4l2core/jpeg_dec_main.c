@@ -42,6 +42,7 @@
 #include "jpeg.h"
 #include "ve.h"
 #include "display.h"
+#include "memory.h"
 
 void set_quantization_tables(struct jpeg_t *jpeg, void *regs)
 {
@@ -122,12 +123,28 @@ void set_size(struct jpeg_t *jpeg, void *regs)
 }
 
 static uint8_t *input_buffer = NULL;
+
 static uint8_t *luma_output = NULL;
 static uint8_t *chroma_u_output = NULL;
 static uint8_t *chroma_v_output = NULL;
 
+static uint8_t *luma_output1 = NULL;
+static uint8_t *chroma_u_output1 = NULL;
+static uint8_t *chroma_v_output1 = NULL;
+
+static uint8_t *luma_output2 = NULL;
+static uint8_t *chroma_u_output2 = NULL;
+static uint8_t *chroma_v_output2 = NULL;
+
+static uint8_t *luma_output3 = NULL;
+static uint8_t *chroma_u_output3 = NULL;
+static uint8_t *chroma_v_output3 = NULL;
+
+static uint8_t write_buffer = 0;
+
 static void* ve_regs = NULL;
-static uint32_t outputs[3];
+
+static uint8_t *phy_input;
 
 void hw_decode_jpeg(struct jpeg_t *jpeg)
 {
@@ -135,6 +152,8 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	int height = jpeg->height;
 
 	int v_offset = chroma_v_output - chroma_u_output;
+
+	int result;
 
 	if (luma_output == 0 || chroma_u_output == 0 || v_offset == 0) {
 		printf("Bad output addresses. skipping decode.\n");
@@ -152,8 +171,10 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	int output_size = line_stride * ((jpeg->height + 31) & ~31);
 	// uint8_t *luma_output = ve_malloc(output_size);
 	// uint8_t *chroma_output = ve_malloc(output_size);
-	memcpy(input_buffer, jpeg->data, jpeg->data_len);
-	ve_flush_cache(input_buffer, jpeg->data_len);
+
+
+	// printf("Will write to ctrl\n");
+	// fflush(stdout);
 
 	writel((0x3 << 4) | 0x3, ve_regs + VE_OUTPUT_FORMAT);
 	writel(v_offset | (0x2 << 30), ve_regs + 0xe8);
@@ -170,8 +191,8 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	set_format(jpeg, ve_regs);
 
 	// set output buffers (Luma / Croma)
-	writel(ve_virt2phys(luma_output), ve_regs + VE_MPEG_ROT_LUMA);
-	writel(ve_virt2phys(chroma_u_output), ve_regs + VE_MPEG_ROT_CHROMA);
+	writel(luma_output, ve_regs + VE_MPEG_ROT_LUMA);
+	writel(chroma_u_output, ve_regs + VE_MPEG_ROT_CHROMA);
 
 	// set size
 	set_size(jpeg, ve_regs);
@@ -180,7 +201,7 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	writel(0x00000000, ve_regs + VE_MPEG_SDROT_CTRL);
 
 	// input end
-	writel(ve_virt2phys(input_buffer) + input_size - 1, ve_regs + VE_MPEG_VLD_END);
+	writel(phy_input + input_size - 1, ve_regs + VE_MPEG_VLD_END);
 
 	// ??
 	writel(0x0000007c, ve_regs + VE_MPEG_CTRL);
@@ -192,7 +213,7 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	writel(jpeg->data_len * 8, ve_regs + VE_MPEG_VLD_LEN);
 
 	// set input buffer
-	writel(ve_virt2phys(input_buffer) | 0x70000000, ve_regs + VE_MPEG_VLD_ADDR);
+	writel(((uint32_t)phy_input) | 0x70000000, ve_regs + VE_MPEG_VLD_ADDR);
 
 	// set Quantisation Table
 	set_quantization_tables(jpeg, ve_regs);
@@ -205,7 +226,13 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	writeb(0x0e, ve_regs + VE_MPEG_TRIGGER);
 
 	// wait for interrupt
-	ve_wait(1);
+	result = ve_wait(1);
+
+	/*
+	if (result) {
+		printf("VE Wait seems timedout %i\n", result);
+	}
+	*/
 
 	// clean interrupt flag (??)
 	writel(0x0000c00f, ve_regs + VE_MPEG_STATUS);
@@ -220,50 +247,104 @@ void hw_init(int width, int height) {
         int input_size = ((width * height * 3) + 65535) & ~65535;
         input_buffer = ve_malloc(input_size, 1);
 
-	printf("input_buffer virtual addr %x\n", input_buffer);
-	printf("input buffer phys addr %x\n", ve_virt2phys(input_buffer));
+	printf("Input buffer %p\n", input_buffer);
 
 	init_display(width, height);
 	
 	printf("Getting outputs\n");
 
-	get_output(&outputs[0]);
+	int dma_fd1 = get_dma_fd1();
+	int dma_fd2 = get_dma_fd2();
+	int dma_fd3 = get_dma_fd3();
 
-	/*
-	luma_output = outputs[0] + addr_diff;
-	chroma_u_output = outputs[1] + addr_diff;
-	chroma_v_output = outputs[2] + addr_diff;
+	printf("Will get dma vaddr\n");
+	fflush(stdout);
 
-	*/
+	void *vaddr1 = ve_get_dma_vaddr(dma_fd1);
+	void *vaddr2 = ve_get_dma_vaddr(dma_fd2);
+	void *vaddr3 = ve_get_dma_vaddr(dma_fd3);
 
-	luma_output = ve_malloc(input_size, 0);
-	chroma_u_output = luma_output + (((width * height) + 65535) & ~65535);
-	chroma_v_output = chroma_u_output + width * height / 2;
+	void *dma_phy1 = vaddr1 - 0xc0000000;
+	void *dma_phy2 = vaddr2 - 0xc0000000;
+	void *dma_phy3 = vaddr3 - 0xc0000000;
 
-	printf("Luma output %x\n", luma_output);
+	uint32_t u_offset;
+	uint32_t v_offset;
 
-	printf("Allocated memory for output %x %x %x\n", luma_output, chroma_u_output, chroma_v_output);
+	get_offsets(&u_offset, &v_offset);
+	
+	luma_output1 = dma_phy1;
+	chroma_u_output1 = luma_output1 + u_offset;
+	chroma_v_output1 = luma_output1 + v_offset;
+
+	luma_output2 = dma_phy2;
+        chroma_u_output2 = luma_output2 + u_offset;
+        chroma_v_output2 = luma_output2 + v_offset;
+
+	luma_output3 = dma_phy3;
+        chroma_u_output3 = luma_output3 + u_offset;
+        chroma_v_output3 = luma_output3 + v_offset;
+
+	luma_output = NULL;
+	chroma_u_output = NULL;
+	chroma_v_output = NULL;
+
 }
 
 void hw_close() {
 	ve_put();
 	ve_free(input_buffer);
-	ve_free(luma_output);
+	// ve_free(luma_output);
 	// ve_free(chroma_output);
 	ve_close();
 	terminate_display();
 }
 
+void get_buffer() {
+	write_buffer = get_buffer_number();
+
+	if (write_buffer == 2) {
+                luma_output = luma_output2;
+                chroma_u_output = chroma_u_output2;
+                chroma_v_output = chroma_v_output2;
+	} else if (write_buffer == 3) {
+                luma_output = luma_output3;
+                chroma_u_output = chroma_u_output3;
+                chroma_v_output = chroma_v_output3;
+	} else {
+		luma_output = luma_output1;
+		chroma_u_output = chroma_u_output1;
+		chroma_v_output = chroma_v_output1;
+	}
+}
+
 void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
-        struct jpeg_t jpeg ;
+        struct jpeg_t jpeg;
+	uint8_t *virt_input;
+
+	// printf("JPEG Decode main\n");
+	// fflush(stdout);
+
         memset(&jpeg, 0, sizeof(jpeg));
+
         if (!parse_jpeg(&jpeg, data, dataLen))
                 printf("ERROR: Can't parse JPEG\n");
 
-        hw_decode_jpeg(&jpeg);
+	phy_input = ve_virt2phys(jpeg.data);
+	virt_input = jpeg.data;
 
-	memcpy(outputs[0], luma_output, jpeg.width * jpeg.height);
-	memcpy(outputs[1], chroma_u_output, jpeg.width * jpeg.height / 2);
-	memcpy(outputs[2], chroma_v_output, jpeg.width * jpeg.height / 2);
+	if (phy_input == 0) {
+		phy_input = ve_virt2phys(input_buffer);
+		virt_input = input_buffer;
+		// printf("Will do memcpy dst: %p src: %p len: %i\n", input_buffer, jpeg->data, jpeg->data_len);
+		// fflush(stdout);
+		memcpy(input_buffer, jpeg.data, jpeg.data_len);
+	}
+
+	ve_flush_cache(virt_input, jpeg.data_len);
+
+	get_buffer();
+        hw_decode_jpeg(&jpeg);
+	put_buffer(write_buffer);
 }
 
