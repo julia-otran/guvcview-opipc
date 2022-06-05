@@ -324,12 +324,15 @@ void init_display(int width, int height, int format) {
 	find_new_plane();
 
 	// Calc buffer size and offsets
-	uint32_t size_page_aligned = ((width * height) + PAGE_SIZE) & ~PAGE_SIZE;
+	uint32_t w_aligned = (width + 32) & ~32;
+	uint32_t h_aligned = (height + 32) & ~32;
+
+	uint32_t size_page_aligned = ((w_aligned * h_aligned) + PAGE_SIZE) & ~PAGE_SIZE;
 	
 	uint32_t u_offset = size_page_aligned;
-	uint32_t u_size = (((width * height) / subsampling_divisor) + PAGE_SIZE) & ~PAGE_SIZE;
+	uint32_t u_size = ((size_page_aligned / subsampling_divisor) + PAGE_SIZE) & ~PAGE_SIZE;
 	
-	uint32_t v_offset = u_offset + ((u_size + PAGE_SIZE) & ~PAGE_SIZE);
+	uint32_t v_offset = u_offset + u_size;
 	uint32_t v_size = u_size;
 	
 	uint32_t total_size = v_offset + v_size;

@@ -118,7 +118,10 @@ int read_controls(v4l2_dev_t *my_vd) {
 }
 
 void update_controls(v4l2_dev_t *my_vd) {
-  if (access(CTRL_FILE, F_OK) == 0) {
+	// TODO: support CEC BMD data
+	//  cec-ctl --record --to 0 --vendor-command-with-id vendor-id=0x7c2e0d,cmd=0x01:0x01
+	//
+      	if (access(CTRL_FILE, F_OK) == 0) {
 	int changed = read_controls(my_vd);
 
 	if (changed > 0 || v4l2core_check_control_events(my_vd) > 0) {
