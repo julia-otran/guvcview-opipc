@@ -48,6 +48,7 @@
 #include "core_io.h"
 #include "../config.h"
 #include "display.h"
+#include "controls.h"
 
 /*flags*/
 extern int debug_level;
@@ -365,6 +366,7 @@ void *capture_loop(void *data)
 			(unsigned int) syscall (SYS_gettid));
 
 	int ret = 0;
+	int err = 0;
 	
 	v4l2core_start_stream(my_vd);
 
@@ -414,8 +416,8 @@ void *capture_loop(void *data)
 
 		}
 
-
-		frame = v4l2core_get_decoded_frame(my_vd);
+		update_controls(my_vd);
+		frame = v4l2core_get_decoded_frame(my_vd, &err);
 
 		if( frame != NULL)
 		{
@@ -425,7 +427,7 @@ void *capture_loop(void *data)
 
 			/* finally render the frame */
 			// snprintf(render_caption, 29, "Guvcview  (%2.2f fps)", 
-			if (count > 5) {
+			if (count > 50) {
 			  printf("FPS = %2.2f\n", v4l2core_get_realfps(my_vd));
 			  count = 0;
 			}
@@ -434,6 +436,12 @@ void *capture_loop(void *data)
 
 			/*we are done with the frame buffer release it*/
 			v4l2core_release_frame(my_vd, frame);
+		}
+
+		if (err == ENODEV) {
+			v4l2core_stop_stream(my_vd);
+			v4l2core_close_dev(my_vd);
+			return ((void *)err);
 		}
 	}
 

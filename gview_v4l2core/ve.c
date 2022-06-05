@@ -56,6 +56,7 @@ enum IOCTL_CMD
 	IOCTL_FLUSH_CACHE,
 
 	IOCTL_GET_DMA_VADDR = 0x510,
+	IOCTL_PUT_DMA_VADDRS = 0x511
 };
 
 struct ve_info
@@ -114,7 +115,7 @@ int ve_open(void)
 
 	ioctl(ve.fd, IOCTL_ENGINE_REQ, 0);
 	ioctl(ve.fd, IOCTL_ENABLE_VE, 0);
-	ioctl(ve.fd, IOCTL_SET_VE_FREQ, 320);
+	ioctl(ve.fd, IOCTL_SET_VE_FREQ, 380);
 	ioctl(ve.fd, IOCTL_RESET_VE, 0);
 
 	writel(0x00130007, ve.regs + VE_CTRL);
@@ -149,6 +150,10 @@ void* ve_get_dma_vaddr(int dma_fd) {
 	return (void*) ioctl(ve.fd, IOCTL_GET_DMA_VADDR, dma_fd);
 }
 
+void ve_put_dma_vaddrs() {
+	ioctl(ve.fd, IOCTL_PUT_DMA_VADDRS, 0);
+}
+
 int ve_get_version(void)
 {
 	return ve.version;
@@ -175,7 +180,7 @@ void *ve_get(int engine, uint32_t flags)
 void ve_put(void)
 {
 	writel(0x00130007, ve.regs + VE_CTRL);
-	// pthread_mutex_unlock(&ve.device_lock);
+	pthread_mutex_unlock(&ve.device_lock);
 }
 
 void *ve_malloc(int size, int write)

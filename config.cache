@@ -31,6 +31,10 @@ ac_cv_env_CXXFLAGS_set=
 ac_cv_env_CXXFLAGS_value=
 ac_cv_env_CXX_set=
 ac_cv_env_CXX_value=
+ac_cv_env_GUVCVIEW_CFLAGS_set=
+ac_cv_env_GUVCVIEW_CFLAGS_value=
+ac_cv_env_GUVCVIEW_LIBS_set=
+ac_cv_env_GUVCVIEW_LIBS_value=
 ac_cv_env_GVIEWV4L2CORE_CFLAGS_set=
 ac_cv_env_GVIEWV4L2CORE_CFLAGS_value=
 ac_cv_env_GVIEWV4L2CORE_LIBS_set=
@@ -58,9 +62,7 @@ ac_cv_func_dcgettext=${ac_cv_func_dcgettext=yes}
 ac_cv_func_dirfd=${ac_cv_func_dirfd=yes}
 ac_cv_func_fpathconf=${ac_cv_func_fpathconf=yes}
 ac_cv_header_dlfcn_h=${ac_cv_header_dlfcn_h=yes}
-ac_cv_header_ffmpeg_avcodec_h=${ac_cv_header_ffmpeg_avcodec_h=no}
 ac_cv_header_inttypes_h=${ac_cv_header_inttypes_h=yes}
-ac_cv_header_libavcodec_avcodec_h=${ac_cv_header_libavcodec_avcodec_h=yes}
 ac_cv_header_libintl_h=${ac_cv_header_libintl_h=yes}
 ac_cv_header_locale_h=${ac_cv_header_locale_h=yes}
 ac_cv_header_math_h=${ac_cv_header_math_h=yes}
@@ -156,5 +158,7 @@ lt_cv_sys_max_cmd_len=${lt_cv_sys_max_cmd_len=1572864}
 lt_cv_to_host_file_cmd=${lt_cv_to_host_file_cmd=func_convert_file_noop}
 lt_cv_to_tool_file_cmd=${lt_cv_to_tool_file_cmd=func_convert_file_noop}
 lt_cv_truncate_bin=${lt_cv_truncate_bin='/usr/bin/dd bs=4096 count=1'}
-pkg_cv_GVIEWV4L2CORE_CFLAGS=${pkg_cv_GVIEWV4L2CORE_CFLAGS='-I/usr/include/libusb-1.0 -I/usr/include/arm-linux-gnueabihf -I/usr/include/libpng16 -I/usr/include/libdrm'}
-pkg_cv_GVIEWV4L2CORE_LIBS=${pkg_cv_GVIEWV4L2CORE_LIBS='-L/build/libjpeg-turbo-6NzRAR/libjpeg-turbo-2.0.3/obj-arm-linux-gnueabihf/lib/arm-linux-gnueabihf -lv4l2 -ludev -lusb-1.0 -lavcodec -lavutil -lpng16 -lz -ldrm -lturbojpeg'}
+pkg_cv_GUVCVIEW_CFLAGS=${pkg_cv_GUVCVIEW_CFLAGS=-I/usr/include/json-c}
+pkg_cv_GUVCVIEW_LIBS=${pkg_cv_GUVCVIEW_LIBS=-ljson-c}
+pkg_cv_GVIEWV4L2CORE_CFLAGS=${pkg_cv_GVIEWV4L2CORE_CFLAGS='-I/usr/include/libusb-1.0 -I/usr/include/libdrm'}
+pkg_cv_GVIEWV4L2CORE_LIBS=${pkg_cv_GVIEWV4L2CORE_LIBS='-lv4l2 -ludev -lusb-1.0 -ldrm'}

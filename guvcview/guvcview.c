@@ -39,6 +39,7 @@
 #include "config.h"
 #include "core_io.h"
 
+int persist_run = 0;
 int debug_level = 0;
 
 static __THREAD_TYPE capture_thread;
@@ -70,6 +71,7 @@ void signal_callback_handler(int signum)
 	{
 		case SIGINT:
 			/* Terminate program */
+			persist_run = 0;
 			quit_callback(NULL);
 			break;
 
@@ -82,6 +84,8 @@ int main(int argc, char *argv[])
 	const rlim_t kStackSize = 128L * 1024L * 1024L;   /* min stack size = 128 Mb*/
     struct rlimit rl;
     int result;
+
+    persist_run = 1;
 
     result = getrlimit(RLIMIT_STACK, &rl);
     if (result == 0)
@@ -144,41 +148,45 @@ int main(int argc, char *argv[])
 
 	v4l2core_set_verbosity(debug_level);
 
-	/*set the v4l2core device (redefines language catalog)*/
-	v4l2_dev_t *vd = create_v4l2_device_handler(my_options->device);
-	if(!vd)
-	{
-		char message[100];
-		snprintf(message, 100, "no video device (%s) found", my_options->device);
-		options_clean();
-		return -1;
-	}
-	
-	if(my_options->disable_libv4l2)
-		v4l2core_disable_libv4l2(vd);
+	v4l2core_start();
 
-	/*select capture method*/
-	if(strcasecmp(my_config->capture, "read") == 0)
-		v4l2core_set_capture_method(vd, IO_READ);
-	else
-		v4l2core_set_capture_method(vd, IO_MMAP);
-
-	/*set software autofocus sort method*/
-	v4l2core_soft_autofocus_set_sort(AUTOF_SORT_INSERT);
-
-	/*set the intended fps*/
-	v4l2core_define_fps(vd, my_config->fps_num,my_config->fps_denom);
-
-	/*select video codec*/
-	if(debug_level > 1)
-		printf("GUVCVIEW: setting video codec to '%s'\n", my_config->video_codec);
+	while (persist_run) {
+		/*set the v4l2core device (redefines language catalog)*/
+		v4l2_dev_t *vd = create_v4l2_device_handler(my_options->device);
+		if(!vd)
+		{
+			char message[100];
+			snprintf(message, 100, "no video device (%s) found", my_options->device);
+			options_clean();
+			sleep(5);
+			continue;
+		}
 		
+		if(my_options->disable_libv4l2)
+			v4l2core_disable_libv4l2(vd);
 
-	/*check if need to load a profile*/
-	if(my_options->prof_filename)
-		v4l2core_load_control_profile(vd, my_options->prof_filename);
+		/*select capture method*/
+		if(strcasecmp(my_config->capture, "read") == 0)
+			v4l2core_set_capture_method(vd, IO_READ);
+		else
+			v4l2core_set_capture_method(vd, IO_MMAP);
 
-	/*set the profile file*/
+		/*set software autofocus sort method*/
+		v4l2core_soft_autofocus_set_sort(AUTOF_SORT_INSERT);
+
+		/*set the intended fps*/
+		v4l2core_define_fps(vd, my_config->fps_num,my_config->fps_denom);
+
+		/*select video codec*/
+		if(debug_level > 1)
+			printf("GUVCVIEW: setting video codec to '%s'\n", my_config->video_codec);
+			
+
+		/*check if need to load a profile*/
+		if(my_options->prof_filename)
+			v4l2core_load_control_profile(vd, my_options->prof_filename);
+
+		/*set the profile file*/
 		my_config->profile_name = strdup(get_profile_name());
 		my_config->profile_path = strdup(get_profile_path());
 
@@ -241,10 +249,20 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "GUVCVIEW: capture_cond wait unknown error: %i\n", ret);
 		}
 
-	if(debug_level > 2)
-		printf("GUVCVIEW: joining capture thread\n");
-	if(!my_options->control_panel)
-		__THREAD_JOIN(capture_thread);
+		if(debug_level > 2)
+			printf("GUVCVIEW: joining capture thread\n");
+
+		if(!my_options->control_panel)
+			__THREAD_JOIN(capture_thread, (void **)&ret);
+
+		if (ret == ENODEV) {
+			printf("GUVCVIEW: no such device, will retry until device is available\n");
+			persist_run = 1;
+			ret = 0;
+		} else {
+			persist_run = 0;
+		}
+	}
 
 
     /*save config before cleaning the options*/
@@ -255,6 +273,8 @@ int main(int argc, char *argv[])
 
 	config_clean();
 	options_clean();
+
+	v4l2core_stop();
 
 	if(debug_level > 0)
 		printf("GUVCVIEW: good bye\n");

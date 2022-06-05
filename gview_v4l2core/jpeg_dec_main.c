@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <time.h>
 
 #include "colorspaces.h"
 #include "jpeg.h"
@@ -94,6 +95,29 @@ void set_huffman_tables(struct jpeg_t *jpeg, void *regs)
 	}
 }
 
+uint8_t get_format(struct jpeg_t *jpeg)
+{
+	uint8_t fmt = (jpeg->comp[0].samp_h << 4) | jpeg->comp[0].samp_v;
+
+        switch (fmt)
+        {
+        case 0x11:
+                return fmt;
+                break;
+        case 0x21:
+                return fmt;
+		break;
+        case 0x12:
+                return fmt;
+		break;
+        case 0x22:
+                return fmt;
+		break;
+        }
+
+	return 0;
+}
+
 void set_format(struct jpeg_t *jpeg, void *regs)
 {
 	uint8_t fmt = (jpeg->comp[0].samp_h << 4) | jpeg->comp[0].samp_v;
@@ -122,6 +146,8 @@ void set_size(struct jpeg_t *jpeg, void *regs)
 	writel((uint32_t)h << 16 | w, regs + VE_MPEG_JPEG_SIZE);
 }
 
+static uint8_t display_initialized = 0;
+
 static uint8_t *input_buffer = NULL;
 
 static uint8_t *luma_output = NULL;
@@ -145,6 +171,11 @@ static uint8_t write_buffer = 0;
 static void* ve_regs = NULL;
 
 static uint8_t *phy_input;
+
+void log_time(struct timespec *a, struct timespec *b) {
+	long deltams = (b->tv_sec * 1000 + b->tv_nsec / 1000000) - (a->tv_sec * 1000 + a->tv_nsec / 1000000);
+	// printf(": Step took %ld ms\n", deltams); 
+}
 
 void hw_decode_jpeg(struct jpeg_t *jpeg)
 {
@@ -228,28 +259,24 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	// wait for interrupt
 	result = ve_wait(1);
 
-	/*
-	if (result) {
-		printf("VE Wait seems timedout %i\n", result);
-	}
-	*/
-
 	// clean interrupt flag (??)
 	writel(0x0000c00f, ve_regs + VE_MPEG_STATUS);
 }
 
 void hw_init(int width, int height) {
-	if (!ve_open())
-                err(EXIT_FAILURE, "Can't open VE");
-
+	printf("hw_init\n");
+	fflush(stdout);
 	ve_regs = ve_get(VE_ENGINE_MPEG, 0);
 
         int input_size = ((width * height * 3) + 65535) & ~65535;
         input_buffer = ve_malloc(input_size, 1);
 
 	printf("Input buffer %p\n", input_buffer);
+	fflush(stdout);
+}
 
-	init_display(width, height);
+void hw_init_display(struct jpeg_t *jpeg) {
+	init_display(jpeg->width, jpeg->height, get_format(jpeg));
 	
 	printf("Getting outputs\n");
 
@@ -289,15 +316,17 @@ void hw_init(int width, int height) {
 	chroma_u_output = NULL;
 	chroma_v_output = NULL;
 
+	display_initialized = 1;
+	printf("Display initialize finished\n");
 }
 
 void hw_close() {
 	ve_put();
 	ve_free(input_buffer);
-	// ve_free(luma_output);
-	// ve_free(chroma_output);
-	ve_close();
 	terminate_display();
+	ve_put_dma_vaddrs();
+	deallocate_buffers();
+	display_initialized = 0;
 }
 
 void get_buffer() {
@@ -318,6 +347,7 @@ void get_buffer() {
 	}
 }
 
+
 void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
         struct jpeg_t jpeg;
 	uint8_t *virt_input;
@@ -330,13 +360,23 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
         if (!parse_jpeg(&jpeg, data, dataLen))
                 printf("ERROR: Can't parse JPEG\n");
 
+	if (!display_initialized) {
+		if (get_format(&jpeg) == 0) {
+			// This frame seems buggy, let's try another one
+			printf("Invalid subsampling found!\n");
+			return;
+		}
+
+		hw_init_display(&jpeg);
+	}
+
 	phy_input = ve_virt2phys(jpeg.data);
 	virt_input = jpeg.data;
 
 	if (phy_input == 0) {
 		phy_input = ve_virt2phys(input_buffer);
 		virt_input = input_buffer;
-		// printf("Will do memcpy dst: %p src: %p len: %i\n", input_buffer, jpeg->data, jpeg->data_len);
+		// printf("Will do memcpy dst: %p src: %p len: %i\n", input_buffer, jpeg.data, jpeg.data_len);
 		// fflush(stdout);
 		memcpy(input_buffer, jpeg.data, jpeg.data_len);
 	}

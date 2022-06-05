@@ -21,6 +21,12 @@
 
 #define VIRT_TO_PHYS (0xc0000000)
 
+#define Y_VALUE 0
+#define U_VALUE 128
+#define V_VALUE 128
+
+typedef uint8_t buffer_t[3];
+
 static uint32_t src_width;
 static uint32_t src_height;
 
@@ -52,22 +58,25 @@ static drmModePlane *old_plane;
 static drmModePlane *new_plane;
 static drmModeCrtc *crtc;
 
+static uint32_t drm_mode_pixel_format;
+
 static pthread_mutex_t current_values_lock;
 static pthread_cond_t available_buffer_cond;
+static pthread_cond_t display_buffer_cond;
 
-static uint8_t current_display_buffer[3];
-static uint8_t current_available_buffer[3];
+static buffer_t current_display_buffer;
+static buffer_t current_available_buffer;
 
 static uint8_t run_video_update;
 static pthread_t display_thread;
 
-void forward(uint8_t *arr) {
+void forward(buffer_t arr) {
 	arr[0] = arr[1];
 	arr[1] = arr[2];
 	arr[2] = 0;
 }
 
-void put(uint8_t *arr, uint8_t data) {
+void put(buffer_t arr, uint8_t data) {
 	if (arr[0] == 0) {
 		arr[0] = data;
 	} else if (arr[1] == 0) {
@@ -77,7 +86,7 @@ void put(uint8_t *arr, uint8_t data) {
 	} 
 }
 
-void display_thread_loop() {
+void* display_thread_loop(void *data) {
 	int result;
 	uint8_t display_buffer = 0;
 	uint8_t prev_display_buffer = 0;
@@ -85,14 +94,12 @@ void display_thread_loop() {
 
 	int buf_ids[4] = { 0, buf_id, buf_id2, buf_id3 };
 
-	drmVBlank vblank;
-	memset(&vblank, 0, sizeof(vblank));
-
-	vblank.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_NEXTONMISS;
-	vblank.request.sequence = 0;
-
 	while (run_video_update) {
 		pthread_mutex_lock(&current_values_lock);
+
+		if (!current_display_buffer[0]) {
+			pthread_cond_wait(&display_buffer_cond, &current_values_lock);
+		}
 
 		if (current_display_buffer[0]) {
 			should_draw = 1;
@@ -112,12 +119,6 @@ void display_thread_loop() {
 			if (result) {
 				printf("Setting plane failed %i\n", result);
 			}
-		}
-
-		result = drmWaitVBlank(drm_fd, &vblank);
-
-		if (result) {
-			printf("Failed to wait for vblank, err: %i\n", result);
 		}
 
 		if (prev_display_buffer) {
@@ -164,28 +165,18 @@ void put_buffer(uint8_t buffer_number) {
 	pthread_mutex_lock(&current_values_lock);
 
 	put(&current_display_buffer, buffer_number);
+	
+	pthread_cond_signal(&display_buffer_cond);
 
 	pthread_mutex_unlock(&current_values_lock);
 }
 
-void init_display(int width, int height) {
-	printf("Openning display\n");
+void start_drm() {
+	int err = 0;
+	int i = 0;
+	int j = 0;
 
-	int err, i;
-
-	pthread_mutex_init(&current_values_lock, NULL);
-	pthread_cond_init(&available_buffer_cond, NULL);
-
-	current_display_buffer[0] = 1;
-	current_display_buffer[1] = 0;
-	current_display_buffer[2] = 0;
-
-	current_available_buffer[0] = 2;
-	current_available_buffer[1] = 3;
-	current_available_buffer[2] = 0;
-
-	src_width = width << 16;
-	src_height = height << 16;
+	printf("Starting display\n");
 
 	drm_fd = drmOpen("sun4i-drm", NULL);
 
@@ -230,8 +221,6 @@ void init_display(int width, int height) {
 		fflush(stdout);
         }
 
-	int j;
-
 	drmModeRes *resources = drmModeGetResources(drm_fd);
 
 	if (plane) {
@@ -255,6 +244,22 @@ void init_display(int width, int height) {
 		fflush(stdout);
 	}
 
+	drmModeFreePlaneResources(plane_res);
+
+	// Set DRM Mode
+	if (old_plane) {
+		err = drmModeSetPlane(drm_fd, old_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	}
+}
+
+void find_new_plane() {
+	int i, j;
+
+        drmModePlaneRes *plane_res = NULL;
+	drmModePlane *plane = NULL;
+
+        plane_res = drmModeGetPlaneResources(drm_fd);
+
 	new_plane = NULL;
 
 	for (i = 0; i < plane_res->count_planes; i++) {
@@ -262,7 +267,7 @@ void init_display(int width, int height) {
 
 		if (plane) {
 			for (j = 0; j < plane->count_formats; j++) {
-				if (plane->formats[j] == DRM_FORMAT_YUV422) {
+				if (plane->formats[j] == drm_mode_pixel_format) {
 					new_plane = plane;
 				}
 			}
@@ -279,23 +284,79 @@ void init_display(int width, int height) {
 	drmModeFreePlaneResources(plane_res);
 
 	if (!new_plane) {
-		printf("Failed to find plane with format YUV422\n");
+		printf("Failed to find plane with valid format\n");
 		fflush(stdout);
 		return;
 	}
 
-	printf("Calculate buffer size and offsets\n");
-	fflush(stdout);
+}
+
+void init_display(int width, int height, int format) {
+	printf("Init buffers\n");
+
+	uint8_t subsampling_divisor;
+	uint32_t chroma_pitches_divisor;
+
+	if (format == 0x22) {
+		drm_mode_pixel_format = DRM_FORMAT_YUV420;
+		subsampling_divisor = 4;
+		chroma_pitches_divisor = 2;
+		printf("Using YUV420 format\n");
+	} else if (format == 0x21) {
+		drm_mode_pixel_format = DRM_FORMAT_YUV422;
+		subsampling_divisor = 2;
+		chroma_pitches_divisor = 2;
+		printf("Using YUV422 format\n");
+	} else if (format == 0x11) {
+		// TODO: I think the cedar may will output 422 format for 444 subsampling.
+		// However, i dont have a device that outputs 444 to test.
+		// If thats the case, adjust vars below to match 0x21 format.
+		drm_mode_pixel_format = DRM_FORMAT_YUV444;
+		subsampling_divisor = 1;
+		chroma_pitches_divisor = 1;
+		printf("MJPEG YUV444 is not tested! may need adjusts.\n");
+		fflush(stdout);
+	} else {
+		// I don't know if GPU supports 0x12 (vertical subsampling only)
+		printf("MJPEG YUV format not supported %x\n", format);
+	}
+	
+	find_new_plane();
 
 	// Calc buffer size and offsets
 	uint32_t size_page_aligned = ((width * height) + PAGE_SIZE) & ~PAGE_SIZE;
+	
 	uint32_t u_offset = size_page_aligned;
-	uint32_t v_offset = u_offset + (width * height / 2);
-	uint32_t total_size = v_offset + (width * height / 2);
+	uint32_t u_size = (((width * height) / subsampling_divisor) + PAGE_SIZE) & ~PAGE_SIZE;
+	
+	uint32_t v_offset = u_offset + ((u_size + PAGE_SIZE) & ~PAGE_SIZE);
+	uint32_t v_size = u_size;
+	
+	uint32_t total_size = v_offset + v_size;
 
 	buffer_size = (total_size + PAGE_SIZE) & ~PAGE_SIZE;
 	data_offsets[0] = u_offset;
 	data_offsets[1] = v_offset;
+
+	int err, i;
+
+	pthread_mutex_init(&current_values_lock, NULL);
+	pthread_cond_init(&available_buffer_cond, NULL);
+
+	current_display_buffer[0] = 1;
+	current_display_buffer[1] = 0;
+	current_display_buffer[2] = 0;
+
+	current_available_buffer[0] = 2;
+	current_available_buffer[1] = 3;
+	current_available_buffer[2] = 0;
+
+	src_width = width << 16;
+	src_height = height << 16;
+
+
+	printf("Calculate buffer size and offsets\n");
+	fflush(stdout);
 
 	// Create and add buffer 1
 
@@ -310,12 +371,12 @@ void init_display(int width, int height) {
 	}
 
         const uint32_t bo_handles[4] = { data.handle, data.handle, data.handle, 0 };
-        const uint32_t pitches[4] = { width, width / 2, width / 2, 0 };
+        const uint32_t pitches[4] = { width, (width / chroma_pitches_divisor), (width / chroma_pitches_divisor), 0 };
         const uint32_t offsets[4] = { 0, u_offset, v_offset, 0 };
 
 	buf_id = 0;
 
-        err = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_YUV422, bo_handles, pitches, offsets, &buf_id, 0);
+        err = drmModeAddFB2(drm_fd, width, height, drm_mode_pixel_format, bo_handles, pitches, offsets, &buf_id, 0);
 
 	if (err) {
 		printf("Failed to add 1st GEM. %i\n", err);
@@ -331,8 +392,9 @@ void init_display(int width, int height) {
         buffer_map = mmap(0, buffer_size, PROT_WRITE, MAP_SHARED, buf_fd, 0);
 
 	if (buffer_map) {
-		memset(buffer_map, 0, buffer_size);
-		// memset(buffer_map, 40, width * height);
+		memset(buffer_map, Y_VALUE, buffer_size);
+		memset(buffer_map + u_offset, U_VALUE, u_size);
+		memset(buffer_map + v_offset, V_VALUE, v_size);
 	}
 
 	// Create and add buffer 2
@@ -352,7 +414,7 @@ void init_display(int width, int height) {
 
 	buf_id2 = 0;
 
-	err = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_YUV422, bo_handles2, pitches, offsets, &buf_id2, 0);
+	err = drmModeAddFB2(drm_fd, width, height, drm_mode_pixel_format, bo_handles2, pitches, offsets, &buf_id2, 0);
 
 	if (err) {
 		printf("Failed to add 2nd framebuffer %i\n", err);
@@ -368,8 +430,9 @@ void init_display(int width, int height) {
 	buffer_map2 = mmap(0, buffer_size, PROT_WRITE, MAP_SHARED, buf_fd2, 0);
 
 	if (buffer_map2) {
-		memset(buffer_map2, 0, buffer_size);
-		// memset(buffer_map2, 255, width * height);
+		memset(buffer_map2, Y_VALUE, buffer_size);
+		memset(buffer_map2 + u_offset, U_VALUE, u_size);
+		memset(buffer_map2 + v_offset, V_VALUE, v_size);
 	}
 
 	// Create and add buffer 3
@@ -388,10 +451,10 @@ void init_display(int width, int height) {
 
 	buf_id3 = 0;
 
-        err = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_YUV422, bo_handles3, pitches, offsets, &buf_id3, 0);
+        err = drmModeAddFB2(drm_fd, width, height, drm_mode_pixel_format, bo_handles3, pitches, offsets, &buf_id3, 0);
 
 	if (err) {
-		printf("Failed to add 1st GEM. %i\n", err);
+		printf("Failed to add 3st GEM. %i\n", err);
 		fflush(stdout);
 	}
 
@@ -404,36 +467,25 @@ void init_display(int width, int height) {
         buffer_map3 = mmap(0, buffer_size, PROT_WRITE, MAP_SHARED, buf_fd3, 0);
 
 	if (buffer_map3) {
-		memset(buffer_map3, 0, buffer_size);
-		// memset(buffer_map, 40, width * height);
-	}
-
-
-	// Set DRM Mode
-	if (old_plane) {
-		err = drmModeSetPlane(drm_fd, old_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		memset(buffer_map3, Y_VALUE, buffer_size);
+		memset(buffer_map3 + u_offset, U_VALUE, u_size);
+		memset(buffer_map3 + v_offset, V_VALUE, v_size);
 	}
 
 	if (buf_id && new_plane) {
-		err = drmModeSetPlane(drm_fd, new_plane->plane_id, crtc->crtc_id, buf_id, 0, crtc->x, crtc->y, crtc->width, crtc->height, 0, 0, width << 16, height << 16);
-		if (err) {
-			printf("Failed to set plane: %i\n", err);
-		}
+		run_video_update = 1;
+		err = pthread_create(&display_thread, NULL, display_thread_loop, NULL);
 	} else {
 		printf("Skipped set plane due to empty buf_id\n");
+		err = 1;
 	}
-
-
-	run_video_update = 1;
-
-	err = pthread_create(&display_thread, NULL, display_thread_loop, NULL);
 
 	if (err) {
 		printf("Failed to start draw thread\n");
+	} else {
+		printf("Display initialized\n");
+		fflush(stdout);
 	}
-
-	printf("Display initialized\n");
-	fflush(stdout);
 }
 
 void terminate_display() 
@@ -441,30 +493,22 @@ void terminate_display()
 	void *thread_return;
 
 	run_video_update = 0;
+	pthread_cond_signal(&display_buffer_cond);
+	pthread_join(display_thread, &thread_return);
 
-	if (new_plane) {
-		drmModeSetPlane(drm_fd, new_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-		drmModeFreePlane(new_plane);
+	if (new_plane && crtc) {
+ 		drmModeSetPlane(drm_fd, new_plane->plane_id, crtc->crtc_id, 0, 0, crtc->x, crtc->y, crtc->width, crtc->height, 0, 0, src_width, src_height);
 	}
 
-	if (old_plane) {
-		drmModeSetPlane(drm_fd, old_plane->plane_id, crtc->crtc_id, old_plane->fb_id, 0, crtc->x, crtc->y, crtc->width, crtc->height, old_plane->x, old_plane->y, crtc->width, crtc->height);
-		drmModeFreePlane(old_plane);
-	}
+	pthread_mutex_destroy(&current_values_lock);
+	pthread_cond_destroy(&available_buffer_cond);
+}
 
-	drmModeFreeCrtc(crtc);
+void deallocate_buffers() {
+	int err;
+	struct drm_gem_close gem_close;
 
-	if (buf_id) {
-		drmModeRmFB(drm_fd, buf_id);
-	}
-
-	if (buf_id2) {
-		drmModeRmFB(drm_fd, buf_id2);
-	}
-
-	if (buf_id3) {
-		drmModeRmFB(drm_fd, buf_id3);
-	}
+	memset(&gem_close, 0, sizeof(gem_close));
 
 	if (buffer_map) {
 		munmap(buffer_map, buffer_size);
@@ -478,17 +522,61 @@ void terminate_display()
 		munmap(buffer_map3, buffer_size);
 	}
 
-	close(buf_id);
-	close(buf_id2);
-	close(buf_id3);
+	close(buf_fd);
+	close(buf_fd2);
+	close(buf_fd3);
 
+	if (buf_id) {
+		drmModeRmFB(drm_fd, buf_id);
+	}
+
+	if (data.handle) {
+		gem_close.handle = data.handle;
+		err = drmIoctl(drm_fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
+		if (err) {
+			printf("Failed to close GEM #1\n");
+		}
+	}
+
+	if (buf_id2) {
+		drmModeRmFB(drm_fd, buf_id2);
+	}
+
+	if (data2.handle) {
+		gem_close.handle = data2.handle;
+		err = drmIoctl(drm_fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
+		if (err) {
+			printf("Failed to close GEM #2\n");
+		}
+	}
+
+	if (buf_id3) {
+		drmModeRmFB(drm_fd, buf_id3);
+	}
+
+	if (data3.handle) {
+		gem_close.handle = data3.handle;
+		err = drmIoctl(drm_fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
+		if (err) {
+			printf("Failed to close GEM #3\n");
+		}
+	}
+}
+
+void stop_drm() {
+	if (new_plane) {
+		drmModeSetPlane(drm_fd, new_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		drmModeFreePlane(new_plane);
+	}
+
+	if (old_plane) {
+		drmModeSetPlane(drm_fd, old_plane->plane_id, crtc->crtc_id, old_plane->fb_id, 0, crtc->x, crtc->y, crtc->width, crtc->height, old_plane->x, old_plane->y, crtc->width, crtc->height);
+		drmModeFreePlane(old_plane);
+	}
+
+	drmModeFreeCrtc(crtc);
 	drmDropMaster(drm_fd);
 	drmClose(drm_fd);
-
-	pthread_join(&display_thread, &thread_return);
-
-	pthread_mutex_destroy(&current_values_lock);
-	pthread_cond_destroy(&available_buffer_cond);
 }
 
 int get_dma_fd1() {

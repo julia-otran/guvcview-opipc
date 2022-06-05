@@ -55,6 +55,7 @@
 #include "../config.h"
 #include "v4l2_xu_ctrls.h"
 #include "ve.h"
+#include "display.h"
 
 #ifndef GETTEXT_PACKAGE_V4L2CORE
 #define GETTEXT_PACKAGE_V4L2CORE "gview_v4l2core"
@@ -611,6 +612,19 @@ static int check_frame_available(v4l2_dev_t *vd)
 	return E_UNKNOWN_ERR;
 }
 
+void v4l2core_start() {
+	start_drm();
+
+        if (!ve_open())
+                printf("FAIL: Can't open VE\n");
+
+}
+
+void v4l2core_stop() {
+	stop_drm();
+	ve_close();
+}
+
 /*
  * set verbosity
  * args:
@@ -1138,7 +1152,7 @@ static int process_input_buffer(v4l2_dev_t *vd)
  *
  * returns: pointer frame buffer (NULL on error)
  */
-v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd)
+v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd, int *err)
 {
 	/*asserts*/
 	assert(vd != NULL);
@@ -1146,8 +1160,11 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd)
 	/*for H264 streams request a IDR frame with SPS and PPS data if it's the first frame*/
 	if(vd->requested_fmt == V4L2_PIX_FMT_H264) {
 		printf("h264 not supported\n");
+		*err = -1;
 		return NULL;
 	}
+
+	*err = 0;
 
 	int res = 0;
 	int ret = check_frame_available(vd);
@@ -1197,34 +1214,13 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd)
 						fprintf(stderr, "V4L2_CORE: read: %s\n", strerror(errno));
 						break;
 				}
+				*err = errno;
 				return NULL;
 			}
 			break;
 
 		case IO_MMAP:
 		default:
-			//if((vd->setH264ConfigProbe > 0))
-			//{
-
-				//if(vd->setH264ConfigProbe)
-				//{
-					//video_disable(vd);
-					//unmap_buff();
-
-					//h264_commit(vd, global);
-
-					//vd->setH264ConfigProbe = 0;
-					//query_buff(vd);
-					//queue_buff(vd);
-					//video_enable(vd);
-				//}
-
-				//ret = check_frame_available(vd);
-
-				//if (ret < 0)
-					//return ret;
-			//}
-
 			/* dequeue the buffers */
 
 			/*lock the mutex*/
@@ -1241,8 +1237,10 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd)
 
 				if(!ret)
 					qind = process_input_buffer(vd);
-				else
+				else {
 					fprintf(stderr, "V4L2_CORE: (VIDIOC_DQBUF) Unable to dequeue buffer: %s\n", strerror(errno));
+					*err = errno;
+				}
 			}
 			else res = -1;
 
@@ -1316,9 +1314,11 @@ int v4l2core_release_frame(v4l2_dev_t *vd, v4l2_frame_buff_t *frame)
  *
  * returns: pointer to decoded frame buffer ( NULL on error)
  */
-v4l2_frame_buff_t *v4l2core_get_decoded_frame(v4l2_dev_t *vd)
+v4l2_frame_buff_t *v4l2core_get_decoded_frame(v4l2_dev_t *vd, int *err)
 {
-	v4l2_frame_buff_t *frame = v4l2core_get_frame(vd);
+
+	v4l2_frame_buff_t *frame = v4l2core_get_frame(vd, err);
+
 	if(frame != NULL)
 	{
 		/*decode the raw frame*/

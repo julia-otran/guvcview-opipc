@@ -81,6 +81,14 @@ IT_PROG_INTLTOOL([0.40])
 IT_PO_SUBDIR(po/gview_v4l2core)
 
 dnl --------------------------------------------------------------------------
+dnl check for guvcview dependencies
+dnl --------------------------------------------------------------------------
+
+PKG_CHECK_MODULES(GUVCVIEW, [json-c])
+AC_SUBST(GUVCVIEW_CFLAGS)
+AC_SUBST(GUVCVIEW_LIBS)
+
+dnl --------------------------------------------------------------------------
 dnl Languages supported by guvcview.
 dnl --------------------------------------------------------------------------
 
@@ -132,43 +140,12 @@ dnl --------------------------------------------------------------------------
 dnl check for libgviewv4l2core dependencies
 dnl --------------------------------------------------------------------------
 
-PKG_CHECK_MODULES(GVIEWV4L2CORE, [libv4l2 libudev libusb-1.0 libavcodec libavutil libpng libdrm libturbojpeg])
+PKG_CHECK_MODULES(GVIEWV4L2CORE, [libv4l2 libudev libusb-1.0 libdrm])
 AC_SUBST(GVIEWV4L2CORE_CFLAGS)
 AC_SUBST(GVIEWV4L2CORE_LIBS)
 
-dnl --------------------------------------------------------------------------
-dnl Check for avcodec.h installation path
-dnl --------------------------------------------------------------------------
-
-dnl Check for avcodec.h directly
-dnl if all tests fail must add avcodec.h path to C_INCLUDE_PATH before running configure
-dnl ORIGINAL_CPPFLAGS="${CPPFLAGS}"
-dnl make sure we search using the CFLAGS includes
-dnl CPPFLAGS+="${GVIEWV4L2CORE_CFLAGS}"
-
-AC_CHECK_HEADERS([libavcodec/avcodec.h ffmpeg/avcodec.h])
-
 dnl restore CCPFLAGS to avoid redefinitions in debian build tree
 dnl CPPFLAGS="${ORIGINAL_CPPFLAGS}"
-
-dnl --------------------------------------------------------------------------
-dnl Check if we will use libavcodec or the internal decoder for mjpeg decoding
-dnl --------------------------------------------------------------------------
-AC_MSG_CHECKING(if you want to use the internal mjpeg decoder over libavcodec )
-AC_ARG_ENABLE(builtin-mjpg, AS_HELP_STRING([--enable-builtin-mjpg],
-		[enable builtin mjpg decoder support (default: disabled)]),
-	[enable_builtin_mjpg=$enableval],
-	[enable_builtin_mjpg=no])
-
-AC_MSG_RESULT($enable_builtin_mjpg)
-
-if test $enable_builtin_mjpg = yes; then
-	AC_DEFINE(MJPG_BUILTIN, 1, [set to 1 if builtin decoder is enabled])
-	AC_MSG_WARN(libavcodec mjpg decoder disabled... the builtin decoder will be used instead.)
-	mjpg_decoder=builtin
-else
-	mjpg_decoder=libavcodec
-fi
 
 dnl --------------------------------------------------------------------------
 dnl check for guvcview dependencies
@@ -209,7 +186,7 @@ AC_MSG_NOTICE([
   ----------------------
 
   Prefix           : ${prefix}
-  mjpg decoder     : ${mjpg_decoder}
+  mjpg decoder     : Cedar
 
 ])
 

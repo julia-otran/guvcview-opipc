@@ -30,6 +30,7 @@ void *ve_get(int engine, uint32_t flags);
 void ve_put(void);
 
 void* ve_get_dma_vaddr(int dma_fd);
+void ve_put_dma_vaddrs();
 
 void *ve_malloc(int size, int write);
 void ve_free(void *ptr);

@@ -39,9 +39,6 @@
 /* libm includes exp */
 #define HAVE_EXP 1
 
-/* Define to 1 if you have the <ffmpeg/avcodec.h> header file. */
-/* #undef HAVE_FFMPEG_AVCODEC_H */
-
 /* Define to 1 if you have the `fpathconf' function. */
 #define HAVE_FPATHCONF 1
 
@@ -53,9 +50,6 @@
 
 /* Define if your <locale.h> file defines LC_MESSAGES. */
 #define HAVE_LC_MESSAGES 1
-
-/* Define to 1 if you have the <libavcodec/avcodec.h> header file. */
-#define HAVE_LIBAVCODEC_AVCODEC_H 1
 
 /* Define to 1 if you have the <locale.h> header file. */
 #define HAVE_LOCALE_H 1
@@ -98,9 +92,6 @@
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
-
-/* set to 1 if builtin decoder is enabled */
-/* #undef MJPG_BUILTIN */
 
 /* Name of package */
 #define PACKAGE "guvcview"

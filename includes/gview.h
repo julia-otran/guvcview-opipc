@@ -71,7 +71,7 @@
 #define __THREAD_TYPE pthread_t
 #define __THREAD_CREATE(t,f,d) (pthread_create(t,NULL,f,d))
 #define __THREAD_CREATE_ATTRIB(t,a,f,d) (pthread_create(t,a,f,d))
-#define __THREAD_JOIN(t) (pthread_join(t, NULL))
+#define __THREAD_JOIN(t, r) (pthread_join(t, r))
 
 #define __ATTRIB_TYPE pthread_attr_t
 #define __INIT_ATTRIB(t) (pthread_attr_init(t))

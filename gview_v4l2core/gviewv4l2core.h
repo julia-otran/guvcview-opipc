@@ -311,6 +311,10 @@ int xioctl(int fd, int IOCTL_X, void *arg);
  */
 void v4l2core_set_verbosity(int level);
 
+void v4l2core_start();
+
+void v4l2core_stop();
+
 /*
  * define fps values
  * args:
@@ -805,7 +809,7 @@ int v4l2core_update_current_format(v4l2_dev_t *vd);
  *
  * returns: pointer frame buffer (NULL on error)
  */
-v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd);
+v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd, int *err);
 
 /*
  * releases the video frame (so that it can be reused by the driver)
@@ -830,7 +834,7 @@ int v4l2core_release_frame(v4l2_dev_t *vd, v4l2_frame_buff_t *frame);
  *
  * returns: pointer to decoded frame buffer ( NULL on error)
  */
-v4l2_frame_buff_t *v4l2core_get_decoded_frame(v4l2_dev_t *vd);
+v4l2_frame_buff_t *v4l2core_get_decoded_frame(v4l2_dev_t *vd, int *err);
 
 /*
  * clean v4l2 buffers

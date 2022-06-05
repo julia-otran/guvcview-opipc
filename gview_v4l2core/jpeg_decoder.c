@@ -69,6 +69,9 @@ static jpeg_decoder_context_t *jpeg_ctx = NULL;
 
 int jpeg_init_decoder(int width, int height)
 {
+	printf("jpeg_init_decoder\n");
+	fflush(stdout);
+
 	if(jpeg_ctx != NULL)
 		jpeg_close_decoder();
 
@@ -108,7 +111,6 @@ int jpeg_decode(uint8_t *out_buf, uint8_t *in_buf, int size)
 	/*asserts*/
 	assert(jpeg_ctx != NULL);
 	assert(in_buf != NULL);
-
 
 	hw_decode_jpeg_main(in_buf, size, out_buf);
 

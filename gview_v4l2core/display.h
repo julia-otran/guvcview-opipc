@@ -1,5 +1,9 @@
-void init_display(int width, int height);
+void start_drm();
+void stop_drm();
+
+void init_display(int width, int height, int format);
 void terminate_display();
+void deallocate_buffers();
 
 int get_buffer_number();
 void put_buffer(uint8_t buffer_number);

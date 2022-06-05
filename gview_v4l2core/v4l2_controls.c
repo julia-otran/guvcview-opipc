@@ -1356,7 +1356,7 @@ int set_control_value_by_id(v4l2_dev_t *vd, int id)
         struct v4l2_control ctrl;
         ctrl.id = control->control.id;
         ctrl.value = control->value;
-        ret = xioctl(vd->fd, VIDIOC_S_CTRL, &ctrl);
+	ret = xioctl(vd->fd, VIDIOC_S_CTRL, &ctrl);
     }
     else
     {
