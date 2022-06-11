@@ -49,6 +49,7 @@
 #include "../config.h"
 #include "display.h"
 #include "controls.h"
+#include "cec_controls.h"
 
 /*flags*/
 extern int debug_level;
@@ -369,10 +370,12 @@ void *capture_loop(void *data)
 	int err = 0;
 	
 	v4l2core_start_stream(my_vd);
+	init_cec_controls();
 
 	v4l2_frame_buff_t *frame = NULL; //pointer to frame buffer
 
 	int count = 0;
+	int controls_changed = 0;
 
 	__COND_SIGNAL(&capture_cond);
 	__UNLOCK_MUTEX(&capture_mutex);
@@ -382,6 +385,9 @@ void *capture_loop(void *data)
 		if(restart)
 		{
 			restart = 0; /*reset*/
+
+			stop_cec_controls();
+
 			v4l2core_stop_stream(my_vd);
 
 			v4l2core_clean_buffers(my_vd);
@@ -412,11 +418,12 @@ void *capture_loop(void *data)
 					v4l2core_get_frame_width(my_vd),
 					v4l2core_get_frame_height(my_vd));
 
+			// Restart CEC to get values back from it
+			init_cec_controls();
 			v4l2core_start_stream(my_vd);
 
 		}
 
-		update_controls(my_vd);
 		frame = v4l2core_get_decoded_frame(my_vd, &err);
 
 		if( frame != NULL)
@@ -424,6 +431,17 @@ void *capture_loop(void *data)
 			/*run software autofocus (must be called after frame was grabbed and decoded)*/
 			if(do_soft_autofocus || do_soft_focus)
 				do_soft_focus = v4l2core_soft_autofocus_run(my_vd, frame);
+
+			// Three control sources, however there's no way to send 
+			// values back to CEC, at least I even tryied
+			controls_changed = 0;
+			load_file_controls(my_vd, &controls_changed);
+			controls_changed |= poll_cec_events(my_vd);
+			controls_changed |= v4l2core_check_control_events(my_vd) > 0;
+
+			if (controls_changed) {
+				write_file_controls(my_vd);
+			}
 
 			/* finally render the frame */
 			// snprintf(render_caption, 29, "Guvcview  (%2.2f fps)", 
@@ -445,6 +463,7 @@ void *capture_loop(void *data)
 		}
 	}
 
+	stop_cec_controls();
 	v4l2core_stop_stream(my_vd);
 	v4l2core_close_dev(my_vd);
 

@@ -9,7 +9,8 @@ guvcview_SOURCES = guvcview.c \
 				   core_io.c \
 				   options.c \
 				   config.c \
-				   controls.c
+				   controls.c \
+				   cec_controls.c
 
 guvcview_CFLAGS = $(PTHREAD_CFLAGS) \
 		  $(GUVCVIEW_CFLAGS) \

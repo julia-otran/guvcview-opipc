@@ -158,7 +158,7 @@ lt_cv_sys_max_cmd_len=${lt_cv_sys_max_cmd_len=1572864}
 lt_cv_to_host_file_cmd=${lt_cv_to_host_file_cmd=func_convert_file_noop}
 lt_cv_to_tool_file_cmd=${lt_cv_to_tool_file_cmd=func_convert_file_noop}
 lt_cv_truncate_bin=${lt_cv_truncate_bin='/usr/bin/dd bs=4096 count=1'}
-pkg_cv_GUVCVIEW_CFLAGS=${pkg_cv_GUVCVIEW_CFLAGS=-I/usr/include/json-c}
-pkg_cv_GUVCVIEW_LIBS=${pkg_cv_GUVCVIEW_LIBS=-ljson-c}
-pkg_cv_GVIEWV4L2CORE_CFLAGS=${pkg_cv_GVIEWV4L2CORE_CFLAGS='-I/usr/include/libusb-1.0 -I/usr/include/libdrm'}
-pkg_cv_GVIEWV4L2CORE_LIBS=${pkg_cv_GVIEWV4L2CORE_LIBS='-lv4l2 -ludev -lusb-1.0 -ldrm'}
+pkg_cv_GUVCVIEW_CFLAGS=${pkg_cv_GUVCVIEW_CFLAGS='-I/usr/include/json-c '}
+pkg_cv_GUVCVIEW_LIBS=${pkg_cv_GUVCVIEW_LIBS='-L/usr/lib/arm-linux-gnueabihf -ljson-c '}
+pkg_cv_GVIEWV4L2CORE_CFLAGS=${pkg_cv_GVIEWV4L2CORE_CFLAGS='-I/usr/include/libusb-1.0 -I/usr/include/libdrm '}
+pkg_cv_GVIEWV4L2CORE_LIBS=${pkg_cv_GVIEWV4L2CORE_LIBS='-L/usr/lib/arm-linux-gnueabihf -lv4l2 -ludev -lusb-1.0 -ldrm '}

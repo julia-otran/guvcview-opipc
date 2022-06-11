@@ -38,12 +38,14 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <time.h>
+#include <arm_neon.h>
 
 #include "colorspaces.h"
 #include "jpeg.h"
 #include "ve.h"
 #include "display.h"
 #include "memory.h"
+#include "granding.h"
 
 void set_quantization_tables(struct jpeg_t *jpeg, void *regs)
 {
@@ -165,6 +167,22 @@ static uint8_t *chroma_v_output2 = NULL;
 static uint8_t *luma_output3 = NULL;
 static uint8_t *chroma_u_output3 = NULL;
 static uint8_t *chroma_v_output3 = NULL;
+
+static uint8_t *luma_output_virt = NULL;
+static uint8_t *chroma_u_output_virt = NULL;
+static uint8_t *chroma_v_output_virt = NULL;
+
+static uint8_t *luma_output1_virt = NULL;
+static uint8_t *chroma_u_output1_virt = NULL;
+static uint8_t *chroma_v_output1_virt = NULL;
+
+static uint8_t *luma_output2_virt = NULL;
+static uint8_t *chroma_u_output2_virt = NULL;
+static uint8_t *chroma_v_output2_virt = NULL;
+
+static uint8_t *luma_output3_virt = NULL;
+static uint8_t *chroma_u_output3_virt = NULL;
+static uint8_t *chroma_v_output3_virt = NULL;
 
 static uint8_t write_buffer = 0;
 
@@ -316,6 +334,22 @@ void hw_init_display(struct jpeg_t *jpeg) {
 	chroma_u_output = NULL;
 	chroma_v_output = NULL;
 
+	luma_output1_virt = get_buffer_1();
+	chroma_u_output1_virt = luma_output1_virt + u_offset;
+	chroma_v_output1_virt = luma_output1_virt + v_offset;
+
+	luma_output2_virt = get_buffer_2();
+	chroma_u_output2_virt = luma_output2_virt + u_offset;
+	chroma_v_output2_virt = luma_output2_virt + v_offset;
+
+	luma_output3_virt = get_buffer_3();
+	chroma_u_output3_virt = luma_output3_virt + u_offset;
+	chroma_v_output3_virt = luma_output3_virt + v_offset;
+
+	luma_output_virt = NULL;
+	chroma_u_output_virt = NULL;
+	chroma_v_output_virt = NULL;
+
 	display_initialized = 1;
 	printf("Display initialize finished\n");
 }
@@ -336,17 +370,28 @@ void get_buffer() {
                 luma_output = luma_output2;
                 chroma_u_output = chroma_u_output2;
                 chroma_v_output = chroma_v_output2;
+
+                luma_output_virt = luma_output2_virt;
+                chroma_u_output_virt = chroma_u_output2_virt;
+                chroma_v_output_virt = chroma_v_output2_virt;
 	} else if (write_buffer == 3) {
                 luma_output = luma_output3;
                 chroma_u_output = chroma_u_output3;
                 chroma_v_output = chroma_v_output3;
+
+                luma_output_virt = luma_output3_virt;
+                chroma_u_output_virt = chroma_u_output3_virt;
+                chroma_v_output_virt = chroma_v_output3_virt;
 	} else {
 		luma_output = luma_output1;
 		chroma_u_output = chroma_u_output1;
 		chroma_v_output = chroma_v_output1;
+
+                luma_output_virt = luma_output1_virt;
+                chroma_u_output_virt = chroma_u_output1_virt;
+                chroma_v_output_virt = chroma_v_output1_virt;
 	}
 }
-
 
 void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
         struct jpeg_t jpeg;
@@ -385,6 +430,7 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
 
 	get_buffer();
         hw_decode_jpeg(&jpeg);
+	process_color_granding(jpeg.width, jpeg.height, luma_output_virt);
 	put_buffer(write_buffer);
 }
 

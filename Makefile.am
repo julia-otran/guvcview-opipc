@@ -72,5 +72,7 @@ dist-hook:
 			cp -p $$specfile $(distdir); \
 		fi \
 	done
+install-exec-local:
+	setcap "CAP_NET_ADMIN+ep" $(bindir)/guvcview
 
 .PHONY: check-gettext update-po update-gmo force-update-gmo

@@ -45,6 +45,7 @@ AC_PREFIX_DEFAULT(/usr/local)
 
 # check for clang first
 # gcc will still be used if clang not installed 
+
 AC_PROG_CC([clang gcc cc])
 AM_PROG_CC_C_O
 AC_PROG_CXX([clang++ g++ cc++ cxx])
@@ -53,7 +54,6 @@ AC_HEADER_STDC
 AC_PROG_LIBTOOL
 # enable Large File Support extension (LFS)
 AC_SYS_LARGEFILE
-
 AM_SANITY_CHECK
 
 dnl --------------------------------------------------------------------------
@@ -85,6 +85,7 @@ dnl check for guvcview dependencies
 dnl --------------------------------------------------------------------------
 
 PKG_CHECK_MODULES(GUVCVIEW, [json-c])
+GUVCVIEW_CFLAGS+=" -march=armv7-a+neon-vfpv4 -mfpu=neon-vfpv4 "
 AC_SUBST(GUVCVIEW_CFLAGS)
 AC_SUBST(GUVCVIEW_LIBS)
 
@@ -141,6 +142,9 @@ dnl check for libgviewv4l2core dependencies
 dnl --------------------------------------------------------------------------
 
 PKG_CHECK_MODULES(GVIEWV4L2CORE, [libv4l2 libudev libusb-1.0 libdrm])
+
+GVIEWV4L2CORE_CFLAGS+=" -march=armv7-a+neon-vfpv4 -mfpu=neon-vfpv4 " 
+
 AC_SUBST(GVIEWV4L2CORE_CFLAGS)
 AC_SUBST(GVIEWV4L2CORE_LIBS)
 

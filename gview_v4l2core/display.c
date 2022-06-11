@@ -586,6 +586,18 @@ int get_dma_fd1() {
 	return buf_fd;
 }
 
+uint8_t* get_buffer_1() {
+	return (uint8_t*)buffer_map;
+}
+
+uint8_t* get_buffer_2() {
+	return (uint8_t*)buffer_map2;
+}
+
+uint8_t* get_buffer_3() {
+	return (uint8_t*)buffer_map3;
+}
+
 int get_dma_fd2() {
 	return buf_fd2;
 }

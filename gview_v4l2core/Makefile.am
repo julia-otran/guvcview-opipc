@@ -20,8 +20,8 @@ c_sources = v4l2_core.c \
 			ve.c \
 			jpeg_dec_main.c \
 			display.c \
-			memory.c
-
+			memory.c \
+			granding.c
 
 #Install the headers in a versioned directory - guvcvideo-x/libgviewv4l2core:
 library_includedir=$(includedir)/$(PACKAGE)-$(PACKAGE_RELEASE)/$(GVIEWV4L2CORE_LIBRARY_NAME)
@@ -37,8 +37,7 @@ libgviewv4l2core_la_CFLAGS = $(GVIEWV4L2CORE_CFLAGS) \
 			$(PTHREAD_CFLAGS) \
 			-DPACKAGE_LOCALE_DIR=\""$(prefix)/$(DATADIRNAME)/locale"\" \
 			-I$(top_srcdir) \
-			-I$(top_srcdir)/includes \
-			-march=armv7-a -marm -mfpu=neon
+			-I$(top_srcdir)/includes
 
 libgviewv4l2core_la_LIBADD= $(GVIEWV4L2CORE_LIBS) $(PTHREAD_LIBS) -lm
 
