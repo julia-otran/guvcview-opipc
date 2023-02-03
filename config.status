@@ -678,7 +678,7 @@ postuninstall_cmds=''
 finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
 finish_eval=''
 hardcode_into_libs='yes'
-sys_lib_search_path_spec='/usr/lib/gcc/arm-linux-gnueabihf/9 /usr/lib/arm-linux-gnueabihf /usr/lib /lib/arm-linux-gnueabihf /lib '
+sys_lib_search_path_spec='/usr/lib/gcc/arm-linux-gnueabihf/11 /usr/lib/arm-linux-gnueabihf /usr/lib /lib/arm-linux-gnueabihf /lib '
 configure_time_dlsearch_path='/lib /usr/lib /usr/local/lib/arm-linux-gnueabihf /lib/arm-linux-gnueabihf /usr/lib/arm-linux-gnueabihf /usr/local/lib '
 configure_time_lt_sys_library_path=''
 hardcode_action='immediate'
@@ -735,12 +735,12 @@ prelink_cmds_CXX=''
 postlink_cmds_CXX=''
 file_list_spec_CXX=''
 hardcode_action_CXX='immediate'
-compiler_lib_search_dirs_CXX='/usr/lib/gcc/arm-linux-gnueabihf/9 /usr/lib/gcc/arm-linux-gnueabihf/9/../../../arm-linux-gnueabihf /usr/lib/gcc/arm-linux-gnueabihf/9/../../../../lib /lib/arm-linux-gnueabihf /lib/../lib /usr/lib/arm-linux-gnueabihf /usr/lib/../lib /usr/lib/gcc/arm-linux-gnueabihf/9/../../..'
-predep_objects_CXX='/usr/lib/gcc/arm-linux-gnueabihf/9/../../../arm-linux-gnueabihf/crti.o /usr/lib/gcc/arm-linux-gnueabihf/9/crtbeginS.o'
-postdep_objects_CXX='/usr/lib/gcc/arm-linux-gnueabihf/9/crtendS.o /usr/lib/gcc/arm-linux-gnueabihf/9/../../../arm-linux-gnueabihf/crtn.o'
+compiler_lib_search_dirs_CXX='/usr/lib/gcc/arm-linux-gnueabihf/11 /usr/lib/gcc/arm-linux-gnueabihf/11/../../../arm-linux-gnueabihf /usr/lib/gcc/arm-linux-gnueabihf/11/../../.. /lib/arm-linux-gnueabihf /usr/lib/arm-linux-gnueabihf'
+predep_objects_CXX='/usr/lib/gcc/arm-linux-gnueabihf/11/../../../arm-linux-gnueabihf/crti.o /usr/lib/gcc/arm-linux-gnueabihf/11/crtbeginS.o'
+postdep_objects_CXX='/usr/lib/gcc/arm-linux-gnueabihf/11/crtendS.o /usr/lib/gcc/arm-linux-gnueabihf/11/../../../arm-linux-gnueabihf/crtn.o'
 predeps_CXX=''
 postdeps_CXX='-lstdc++ -lm -lgcc_s -lc -lgcc_s'
-compiler_lib_search_path_CXX='-L/usr/lib/gcc/arm-linux-gnueabihf/9 -L/usr/lib/gcc/arm-linux-gnueabihf/9/../../../arm-linux-gnueabihf -L/usr/lib/gcc/arm-linux-gnueabihf/9/../../../../lib -L/lib/arm-linux-gnueabihf -L/lib/../lib -L/usr/lib/arm-linux-gnueabihf -L/usr/lib/../lib -L/usr/lib/gcc/arm-linux-gnueabihf/9/../../..'
+compiler_lib_search_path_CXX='-L/usr/lib/gcc/arm-linux-gnueabihf/11 -L/usr/lib/gcc/arm-linux-gnueabihf/11/../../../arm-linux-gnueabihf -L/usr/lib/gcc/arm-linux-gnueabihf/11/../../.. -L/lib/arm-linux-gnueabihf -L/usr/lib/arm-linux-gnueabihf'
 
 LTCC='gcc'
 LTCFLAGS='-g -O2'
@@ -889,8 +889,8 @@ S["am__EXEEXT_FALSE"]=""
 S["am__EXEEXT_TRUE"]="#"
 S["LTLIBOBJS"]=""
 S["LIBOBJS"]=""
-S["GVIEWV4L2CORE_LIBS"]="-L/usr/lib/arm-linux-gnueabihf -lv4l2 -ludev -lusb-1.0 -ldrm "
-S["GVIEWV4L2CORE_CFLAGS"]="-I/usr/include/libusb-1.0 -I/usr/include/libdrm  -march=armv7-a+neon-vfpv4 -mfpu=neon-vfpv4 "
+S["GVIEWV4L2CORE_LIBS"]="-lv4l2 -ludev -lusb-1.0 -ldrm"
+S["GVIEWV4L2CORE_CFLAGS"]="-I/usr/include/libusb-1.0 -I/usr/include/libdrm -march=armv7-a+neon-vfpv4 -mfpu=neon-vfpv4 "
 S["GVIEWV4L2CORE_LIBRARY_VERSION"]="2:0:0"
 S["GVIEWV4L2CORE_API_VERSION"]="2.0"
 S["GVIEWV4L2CORE_LD_NAME"]="gviewv4l2core"
@@ -911,8 +911,8 @@ S["CATALOGS"]=" bg.gmo bs.gmo cs.gmo da.gmo de.gmo en_AU.gmo es.gmo eu.gmo fo.gm
 "u.gmo si.gmo sr.gmo tr.gmo uk.gmo zh_TW.gmo"
 S["MSGFMT_OPTS"]="-c"
 S["INTL_MACOSX_LIBS"]=""
-S["GUVCVIEW_LIBS"]="-L/usr/lib/arm-linux-gnueabihf -ljson-c "
-S["GUVCVIEW_CFLAGS"]="-I/usr/include/json-c  -march=armv7-a+neon-vfpv4 -mfpu=neon-vfpv4 "
+S["GUVCVIEW_LIBS"]="-ljson-c"
+S["GUVCVIEW_CFLAGS"]="-I/usr/include/json-c -march=armv7-a+neon-vfpv4 -mfpu=neon-vfpv4 "
 S["PKG_CONFIG_LIBDIR"]=""
 S["PKG_CONFIG_PATH"]=""
 S["PKG_CONFIG"]="/usr/bin/pkg-config"
@@ -972,7 +972,7 @@ S["INTLTOOL_UPDATE"]="/usr/bin/intltool-update"
 S["USE_NLS"]="yes"
 S["GETTEXT_PACKAGE"]="guvcview"
 S["GETTEXT_PACKAGE_V4L2CORE"]="gview_v4l2core"
-S["PTHREAD_CFLAGS"]="-pthread"
+S["PTHREAD_CFLAGS"]=""
 S["PTHREAD_LIBS"]=""
 S["PTHREAD_CC"]="gcc"
 S["acx_pthread_config"]=""

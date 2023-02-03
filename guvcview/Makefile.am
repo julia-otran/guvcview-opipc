@@ -24,7 +24,7 @@ guvcview_CFLAGS = $(PTHREAD_CFLAGS) \
 		  $(EXTRA_CFLAGS) -I$(top_srcdir) -I$(top_srcdir)/includes \
 		  -I$(top_srcdir)/gview_v4l2core
 
-guvcview_LDFLAGS = $(LIBINTL) --verbose -L/usr/local/lib -pthread -lm -lz -lm -pthread -lX11 -lm -lX11
+guvcview_LDFLAGS = $(LIBINTL) --verbose -L/usr/local/lib -pthread -lm
 
 guvcview_LDADD = ../gview_v4l2core/$(GVIEWV4L2CORE_LIBRARY_NAME).la \
 				$(PTHREAD_LIBS) \

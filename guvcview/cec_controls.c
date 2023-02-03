@@ -19,6 +19,7 @@
 
 #include "atem.h"
 #include "gviewv4l2core.h"
+#include "cec_controls.h"
 
 struct message_node {
 	uint8_t code;
@@ -207,7 +208,7 @@ void* rx_loop(void *args) {
 }
 
 void set_mode_monitor() {
-	unsigned int mode = CEC_MODE_MONITOR;
+	unsigned int mode = CEC_MODE_PREVENT_REPLY;
 	send_ioctl(CEC_S_MODE, &mode);
 }
 
@@ -227,7 +228,6 @@ void init_cec_controls() {
 	}
 
 	send_init_code();
-
 	set_mode_monitor();
 
 	fcntl(cec_fd, F_SETFL, fcntl(cec_fd, F_GETFL) | O_NONBLOCK);
