@@ -74,5 +74,6 @@ dist-hook:
 	done
 install-exec-local:
 	setcap "CAP_NET_ADMIN+ep" $(bindir)/guvcview
+	ldconfig
 
 .PHONY: check-gettext update-po update-gmo force-update-gmo

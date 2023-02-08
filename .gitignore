@@ -34,8 +34,11 @@ Makefile
 configure
 aclocal.m4
 config.guess
+config.cache
+config.h
 config.h.in
 config.sub
+config.status
 depcomp
 libtool
 install-sh

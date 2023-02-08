@@ -9,6 +9,8 @@
 #include <sys/resource.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
@@ -54,9 +56,9 @@ static struct drm_sun4i_gem_create data;
 static struct drm_sun4i_gem_create data2;
 static struct drm_sun4i_gem_create data3;
 
-static drmModePlane *old_plane;
-static drmModePlane *new_plane;
-static drmModeCrtc *crtc;
+static drmModePlane **new_planes;
+static int count_crtcs;
+static drmModeCrtc **crtcs;
 
 static uint32_t drm_mode_pixel_format;
 
@@ -91,6 +93,7 @@ void* display_thread_loop(void *data) {
 	uint8_t display_buffer = 0;
 	uint8_t prev_display_buffer = 0;
 	uint8_t should_draw = 0;
+	uint8_t first_run = 1;
 
 	int buf_ids[4] = { 0, buf_id, buf_id2, buf_id3 };
 
@@ -114,10 +117,30 @@ void* display_thread_loop(void *data) {
 		pthread_mutex_unlock(&current_values_lock);
 
 		if (should_draw) {
- 			result = drmModeSetPlane(drm_fd, new_plane->plane_id, crtc->crtc_id, buf_ids[display_buffer], 0, crtc->x, crtc->y, crtc->width, crtc->height, 0, 0, src_width, src_height);
+			if (crtcs[0] && new_planes[0] && false) {
+				printf("Setting plane %i to crtc %i\n", new_planes[0]->plane_id, crtcs[0]->crtc_id);
 
-			if (result) {
-				printf("Setting plane failed %i\n", result);
+				result = drmModeSetPlane(drm_fd, new_planes[0]->plane_id, crtcs[0]->crtc_id, buf_ids[display_buffer], 0, crtcs[0]->x, crtcs[0]->y, crtcs[0]->width, crtcs[0]->height, 0, 0, src_width, src_height);
+
+				if (result) {
+					printf("Setting plane failed %i\n", result);
+					fflush(stdout);
+					exit(1);
+				}
+			}
+
+			if (crtcs[1] && new_planes[1] && first_run) {
+				first_run = 0;
+				printf("Setting plane %i to crtc %i\n", new_planes[1]->plane_id, crtcs[1]->crtc_id);
+				fflush(stdout);
+				
+				result = drmModeSetPlane(drm_fd, new_planes[1]->plane_id, crtcs[1]->crtc_id, buf_ids[display_buffer], 0, crtcs[1]->x, crtcs[1]->y, crtcs[1]->width, crtcs[1]->height, 0, 0, src_width, src_height);
+
+				if (result) {
+					printf("Setting crtc failed %i\n", result);
+					fflush(stdout);
+					exit(1);
+				}
 			}
 		}
 
@@ -176,6 +199,21 @@ void start_drm() {
 	int i = 0;
 	int j = 0;
 
+	int composite_connector_id = 0;
+	int hdmi_connector_id = 0;
+
+	int composite_encoder_id = 0;
+	int hdmi_encoder_id = 0;
+
+	int composite_crtc_id = 0;
+	int hdmi_crtc_id = 0;
+
+	int hdmi_buffer_id = 0;
+	int composite_buffer_id = 0;
+	
+	drmModeModeInfo composite_mode;
+	drmModeModeInfo hdmi_mode;
+
 	printf("Starting display\n");
 
 	drm_fd = drmOpen("sun4i-drm", NULL);
@@ -193,102 +231,201 @@ void start_drm() {
 
 	drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
 
+	drmModeRes *resources = drmModeGetResources(drm_fd);
+
+	printf("Connectors....\n");
+	drmModeConnector *conn;
+
+	for (i=0; i < resources->count_connectors; i++) {
+		conn = drmModeGetConnector(drm_fd, resources->connectors[i]);
+		printf("------------\n");
+		printf("Connector: %i\n", conn->connector_id);
+		printf("Type: %i\n", conn->connector_type);
+		printf("Current Encoder: %i\n\n", conn->encoder_id);
+
+		for (int j=0; j < conn->count_encoders; j++) {
+			printf("Encoder: %i\n", conn->encoders[j]);
+		}
+
+		printf("\n");
+
+		for (int j=0; j < conn->count_modes; j++) {
+			drmModeModeInfo *info = &(conn->modes[j]);
+
+			printf("Mode: %i;%i; %i;%i name: %s\n", info->hdisplay, info->vdisplay, info->hsync_end, info->vsync_end, info->name);
+		}
+
+		if (conn->connector_type == DRM_MODE_CONNECTOR_Composite) {
+			composite_connector_id = conn->connector_id;
+			composite_encoder_id = conn->encoder_id;
+			memcpy(&composite_mode, &conn->modes[1], sizeof(composite_mode));
+		}
+
+		if (conn->connector_type == DRM_MODE_CONNECTOR_HDMIA) {
+			hdmi_connector_id = conn->connector_id;
+			hdmi_encoder_id = conn->encoder_id;
+			memcpy(&hdmi_mode, &conn->modes[0], sizeof(hdmi_mode));
+		}
+
+		drmModeFreeConnector(conn);
+	}
+	printf("------------\n");
+	printf("Done found connectors\n");
+	
+	printf("Encoders....\n");
+	drmModeEncoder *enc;
+
+	for (i=0; i < resources->count_encoders; i++) {
+		enc = drmModeGetEncoder(drm_fd, resources->encoders[i]);
+		printf("------------\n");
+		printf("Encoder: %i\n", enc->encoder_id);
+		printf("CRTC: %i\n", enc->crtc_id);
+		printf("Possible CRTCs: %i\n", enc->possible_crtcs);
+		printf("Possible clones: %i\n", enc->possible_clones);
+
+		if (enc->encoder_id == composite_encoder_id) {
+			composite_crtc_id = enc->crtc_id;
+		};
+
+		if (enc->encoder_id == hdmi_encoder_id) {
+			hdmi_crtc_id = enc->crtc_id;
+		};
+
+		drmModeFreeEncoder(enc);
+	}
+	printf("------------\n");
+	printf("Done found encoders\n");
+
+	count_crtcs = resources->count_crtcs;
+	crtcs = (drmModeCrtc**) calloc(count_crtcs, sizeof(drmModeCrtc*));
+
+	drmModeCrtc *crtc;
+
+	printf("CRTCs.....\n");
+	for (i=0; i < resources->count_crtcs; i++) {
+		crtc = drmModeGetCrtc(drm_fd, resources->crtcs[i]);
+
+		if (crtc->crtc_id == hdmi_crtc_id) {
+			hdmi_buffer_id = crtc->buffer_id;
+		}
+
+		if (crtc->crtc_id == composite_crtc_id) {
+			composite_buffer_id = crtc->buffer_id;
+			drmModeSetCrtc(drm_fd, composite_crtc_id, composite_buffer_id, 0, 0, &composite_connector_id, 1, &composite_mode);
+			drmModeFreeCrtc(crtc);
+			crtc = drmModeGetCrtc(drm_fd, resources->crtcs[i]);
+		}
+
+		printf("------------\n");
+		printf("CRTC Id: %i\n", crtc->crtc_id);
+		printf("CRTC X: %i\n", crtc->x);
+		printf("CRTC Y: %i\n", crtc->y);
+		printf("CRTC W: %i\n", crtc->width);
+		printf("CRTC H: %i\n", crtc->height);
+
+		crtcs[i] = crtc;
+	}
+
+	printf("------------\n");
+	printf("Done found CRTCs\n");
+
+	if (count_crtcs <= 0) {
+		printf("Failed to find CRTC\n");
+		fflush(stdout);
+	}
+
+	drmModeFreeResources(resources);
+
+	// List and clear current planes;
+	printf("Findig planes....\n");
+
         drmModePlaneRes *plane_res = NULL;
         drmModePlane *plane = NULL;
 
         plane_res = drmModeGetPlaneResources(drm_fd);
 
-        if (plane_res) {
-                for (i = 0; i < plane_res->count_planes; i++) {
-                        plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
-                        if (plane && plane->fb_id) {
-                                break;
-                        } else if (plane) {
-                                drmModeFreePlane(plane);
-				plane = NULL;
-                        }
-                }
-        } else {
-                printf("cannot find plane_res\n");
-		fflush(stdout);
-        }
+	for (i = 0; i < plane_res->count_planes; i++) {
+		plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
 
-        if (plane) {
-                old_plane = plane;
-        } else {
-                old_plane = NULL;
-		printf("Failed to find current plane\n");
-		fflush(stdout);
-        }
+		if (plane) {
+			printf("-----------\n");
+			printf("Plane ID: %i\n", plane->plane_id);
+			printf("CRCT ID: %i\n", plane->crtc_id);
+			printf("Possible CRTCs: %i\n", plane->possible_crtcs);
 
-	drmModeRes *resources = drmModeGetResources(drm_fd);
+			if (plane->fb_id && plane->crtc_id == composite_crtc_id) {
+				printf("Clearing plane....\n", plane->plane_id);
+				fflush(stdout);
 
-	if (plane) {
-		crtc = drmModeGetCrtc(drm_fd, plane->crtc_id);
-	} else {
-		for (i = 0; i < resources->count_crtcs; i++) {
-			crtc = drmModeGetCrtc(drm_fd, resources->crtcs[i]);
-			if (crtc && crtc->buffer_id) {
-				break;
-			} else {
-				drmModeFreeCrtc(crtc);
-				crtc = NULL;
+				drmModeSetPlane(drm_fd, plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 			}
+
+			drmModeFreePlane(plane);
 		}
 	}
 
-	drmModeFreeResources(resources);
-
-	if (!crtc) {
-		printf("Failed to find CRTC\n");
-		fflush(stdout);
-	}
-
-	drmModeFreePlaneResources(plane_res);
-
-	// Set DRM Mode
-	if (old_plane) {
-		err = drmModeSetPlane(drm_fd, old_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-	}
+	printf("DRM Started!\n");
+	fflush(stdout);
 }
 
 void find_new_plane() {
-	int i, j;
+	int i, j, crtc_idx, has_format;
+	int plane_num = 0;
 
         drmModePlaneRes *plane_res = NULL;
 	drmModePlane *plane = NULL;
 
         plane_res = drmModeGetPlaneResources(drm_fd);
 
-	new_plane = NULL;
+	new_planes = (drmModePlane**) calloc(count_crtcs, sizeof(drmModePlane*));
+	memset(new_planes, NULL, count_crtcs * sizeof(drmModePlane*));
 
 	for (i = 0; i < plane_res->count_planes; i++) {
+		has_format = 0;
+		crtc_idx = -1;
+
 		plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
 
 		if (plane) {
 			for (j = 0; j < plane->count_formats; j++) {
 				if (plane->formats[j] == drm_mode_pixel_format) {
-					new_plane = plane;
+					has_format = 1;
+					break;
 				}
 			}
 
+			printf("-----------\n");
+			printf("Plane ID: %i\n", plane->plane_id);
+			printf("Support format: %i\n", has_format);
 
-			if (new_plane) {
-				break;
-			} else {
-				drmModeFreePlane(plane);
+			if (has_format) {
+				new_planes[plane_num] = plane;
+				plane_num++;
+				continue;
 			}
+			
+			drmModeFreePlane(plane);
 		}
 	}
 
 	drmModeFreePlaneResources(plane_res);
 
-	if (!new_plane) {
-		printf("Failed to find plane with valid format\n");
-		fflush(stdout);
-		return;
+	int any_found = 0;
+
+	for (i = 0; i < count_crtcs; i++) {
+		if (new_planes[i]) {
+			any_found = 1;
+			printf("Found plane %i for CRTC %i\n", new_planes[i]->plane_id, crtcs[i]->crtc_id);
+		} else {
+			printf("Could not find plane for CRTC: %i\n", crtcs[i]->crtc_id);
+		}
 	}
 
+	if (!any_found) {
+		printf("Unable to find a available plane\n");
+		fflush(stdout);
+		exit(1);
+	}
 }
 
 void init_display(int width, int height, int format) {
@@ -357,8 +494,7 @@ void init_display(int width, int height, int format) {
 	src_width = width << 16;
 	src_height = height << 16;
 
-
-	printf("Calculate buffer size and offsets\n");
+	printf("Calculated buffer size and offsets\n");
 	fflush(stdout);
 
 	// Create and add buffer 1
@@ -371,6 +507,7 @@ void init_display(int width, int height, int format) {
 
 	if (err) {
 		printf("Failed to create 1st GEM. %i\n", err);
+		fflush(stdout);
 	}
 
         const uint32_t bo_handles[4] = { data.handle, data.handle, data.handle, 0 };
@@ -448,6 +585,7 @@ void init_display(int width, int height, int format) {
 
 	if (err) {
 		printf("Failed to create 3st GEM. %i\n", err);
+		fflush(stdout);
 	}
 
         const uint32_t bo_handles3[4] = { data3.handle, data3.handle, data3.handle, 0 };
@@ -475,16 +613,20 @@ void init_display(int width, int height, int format) {
 		memset(buffer_map3 + v_offset, V_VALUE, v_size);
 	}
 
-	if (buf_id && new_plane) {
+	if (buf_id) {
+		printf("Starting display thread\n");
+		fflush(stdout);
+
 		run_video_update = 1;
 		err = pthread_create(&display_thread, NULL, display_thread_loop, NULL);
 	} else {
-		printf("Skipped set plane due to empty buf_id\n");
+		printf("Skipped starting display thread\n");
 		err = 1;
 	}
 
 	if (err) {
 		printf("Failed to start draw thread\n");
+		fflush(stdout);
 	} else {
 		printf("Display initialized\n");
 		fflush(stdout);
@@ -499,8 +641,10 @@ void terminate_display()
 	pthread_cond_signal(&display_buffer_cond);
 	pthread_join(display_thread, &thread_return);
 
-	if (new_plane && crtc) {
- 		drmModeSetPlane(drm_fd, new_plane->plane_id, crtc->crtc_id, 0, 0, crtc->x, crtc->y, crtc->width, crtc->height, 0, 0, src_width, src_height);
+	for (int i = 0; i < count_crtcs; i++) {
+		if (new_planes[i]) {
+			drmModeSetPlane(drm_fd, new_planes[i]->plane_id, crtcs[i]->crtc_id, 0, 0, crtcs[i]->x, crtcs[i]->y, crtcs[i]->width, crtcs[i]->height, 0, 0, src_width, src_height);
+		}
 	}
 
 	pthread_mutex_destroy(&current_values_lock);
@@ -567,17 +711,16 @@ void deallocate_buffers() {
 }
 
 void stop_drm() {
-	if (new_plane) {
-		drmModeSetPlane(drm_fd, new_plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-		drmModeFreePlane(new_plane);
+	for (int i = 0; i < count_crtcs; i++) {
+		if (new_planes[i]) {
+			drmModeSetPlane(drm_fd, new_planes[i]->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+			drmModeFreePlane(new_planes[i]);
+		}
+
+		drmModeSetPlane(drm_fd, 0, crtcs[i]->crtc_id, 0, 0, crtcs[i]->x, crtcs[i]->y, crtcs[i]->width, crtcs[i]->height, 0, 0, crtcs[i]->width, crtcs[i]->height);
+		drmModeFreeCrtc(crtcs[i]);
 	}
 
-	if (old_plane) {
-		drmModeSetPlane(drm_fd, old_plane->plane_id, crtc->crtc_id, old_plane->fb_id, 0, crtc->x, crtc->y, crtc->width, crtc->height, old_plane->x, old_plane->y, crtc->width, crtc->height);
-		drmModeFreePlane(old_plane);
-	}
-
-	drmModeFreeCrtc(crtc);
 	drmDropMaster(drm_fd);
 	drmClose(drm_fd);
 }
