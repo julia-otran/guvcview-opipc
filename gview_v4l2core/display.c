@@ -93,7 +93,6 @@ void* display_thread_loop(void *data) {
 	uint8_t display_buffer = 0;
 	uint8_t prev_display_buffer = 0;
 	uint8_t should_draw = 0;
-	uint8_t first_run = 1;
 
 	int buf_ids[4] = { 0, buf_id, buf_id2, buf_id3 };
 
@@ -117,27 +116,21 @@ void* display_thread_loop(void *data) {
 		pthread_mutex_unlock(&current_values_lock);
 
 		if (should_draw) {
-			if (crtcs[0] && new_planes[0] && false) {
-				printf("Setting plane %i to crtc %i\n", new_planes[0]->plane_id, crtcs[0]->crtc_id);
-
+			if (crtcs[0] && new_planes[0]) {
 				result = drmModeSetPlane(drm_fd, new_planes[0]->plane_id, crtcs[0]->crtc_id, buf_ids[display_buffer], 0, crtcs[0]->x, crtcs[0]->y, crtcs[0]->width, crtcs[0]->height, 0, 0, src_width, src_height);
 
 				if (result) {
-					printf("Setting plane failed %i\n", result);
+					printf("Setting HDMI plane failed %i\n", result);
 					fflush(stdout);
 					exit(1);
 				}
 			}
 
-			if (crtcs[1] && new_planes[1] && first_run) {
-				first_run = 0;
-				printf("Setting plane %i to crtc %i\n", new_planes[1]->plane_id, crtcs[1]->crtc_id);
-				fflush(stdout);
-				
+			if (crtcs[1] && new_planes[1]) {
 				result = drmModeSetPlane(drm_fd, new_planes[1]->plane_id, crtcs[1]->crtc_id, buf_ids[display_buffer], 0, crtcs[1]->x, crtcs[1]->y, crtcs[1]->width, crtcs[1]->height, 0, 0, src_width, src_height);
 
 				if (result) {
-					printf("Setting crtc failed %i\n", result);
+					printf("Setting composite plane failed %i\n", result);
 					fflush(stdout);
 					exit(1);
 				}
@@ -353,7 +346,7 @@ void start_drm() {
 			printf("CRCT ID: %i\n", plane->crtc_id);
 			printf("Possible CRTCs: %i\n", plane->possible_crtcs);
 
-			if (plane->fb_id && plane->crtc_id == composite_crtc_id) {
+			if (plane->fb_id) {
 				printf("Clearing plane....\n", plane->plane_id);
 				fflush(stdout);
 
