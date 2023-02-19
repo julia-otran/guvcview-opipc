@@ -363,7 +363,6 @@ void start_drm() {
 
 void find_new_plane() {
 	int i, j, crtc_idx, has_format;
-	int plane_num = 0;
 
         drmModePlaneRes *plane_res = NULL;
 	drmModePlane *plane = NULL;
@@ -390,10 +389,15 @@ void find_new_plane() {
 			printf("-----------\n");
 			printf("Plane ID: %i\n", plane->plane_id);
 			printf("Support format: %i\n", has_format);
+			printf("Possible CRTCs: %i\n", plane->possible_crtcs);
 
 			if (has_format) {
-				new_planes[plane_num] = plane;
-				plane_num++;
+				for (j = 0; j < count_crtcs; j++) {
+					if (plane->possible_crtcs & 1 << j) {
+						new_planes[j] = plane;
+					}
+				}
+
 				continue;
 			}
 			
@@ -419,6 +423,134 @@ void find_new_plane() {
 		fflush(stdout);
 		exit(1);
 	}
+}
+
+void setPlanesColorFormat() {
+	int err = 0;
+	int i, j, k;
+	__u32 prop_ids[2][2] = { { 0, 0 }, { 0, 0 } };
+	__u64 prop_values[2][2] = { { 0, 0 }, { 0, 0 } };
+
+	printf("\n\nLooking for color mode and range props\n");
+	fflush(stdout);
+
+	// Get Color Mode and Color Range prop ids
+
+	struct drm_mode_obj_get_properties obj_get_props_data;
+
+	__u32 *props_ptr = (__u32*) calloc(500, sizeof(__u32));
+	__u64 *prop_values_ptr = (__u64*) calloc(500, sizeof(__u64));
+	
+	struct drm_mode_get_property property;
+	struct drm_mode_property_enum *prop_enum;
+
+	struct drm_mode_property_enum *enum_blob_ptr = (struct drm_mode_property_enum*) 
+		calloc(10, sizeof(struct drm_mode_property_enum));
+
+	// Should we support more than 2 crtcs?
+	for (i = 0; i < 2; i++) {
+		if (new_planes[i]) {
+			printf("Getting properties of plane %i\n", new_planes[i]->plane_id);
+
+			obj_get_props_data.obj_id = new_planes[i]->plane_id;
+			obj_get_props_data.obj_type = DRM_MODE_OBJECT_PLANE;
+			obj_get_props_data.count_props = 500;
+			obj_get_props_data.props_ptr = (__u64) props_ptr;
+			obj_get_props_data.prop_values_ptr = (__u64) prop_values_ptr;
+
+			err = drmIoctl(drm_fd, DRM_IOCTL_MODE_OBJ_GETPROPERTIES, &obj_get_props_data);
+
+			if (err) {
+				printf("Error getting properties of plane %i. Err: %i\n", new_planes[i]->plane_id, err);
+				continue;
+			}
+
+			for (j = 0; j < obj_get_props_data.count_props; j++) {
+				if (props_ptr[j]) {
+					property.enum_blob_ptr = (__u64) enum_blob_ptr;
+					property.count_enum_blobs = 10;
+					property.count_values = 0;
+					property.flags = 0;
+					property.prop_id = props_ptr[j];
+					
+					memset(&property.name, 0, sizeof(property.name));
+
+					err = drmIoctl(drm_fd, DRM_IOCTL_MODE_GETPROPERTY, &property);
+
+					if (err) {
+						printf("Error getting property %u. Err: %i\n", props_ptr[j], err);
+						continue;
+					}
+
+					printf("Found property %u: %s\n", props_ptr[j], property.name);
+
+					if (strcmp(property.name, "COLOR_ENCODING") == 0) {
+						printf("Found plane %i COLOR_ENCODING prop. id: %u\n", new_planes[i]->plane_id, property.prop_id);
+
+						for (k = 0; k < 5; k++) {
+							prop_enum = &enum_blob_ptr[k];
+
+							if (prop_enum && strstr(prop_enum->name, "601")) {
+								printf("Prop enum name %s value %llu\n", prop_enum->name, prop_enum->value);
+								prop_ids[i][0] = property.prop_id;
+								prop_values[i][0] = prop_enum->value;
+								break;
+							}
+						}
+					}
+
+					if (strcmp(property.name, "COLOR_RANGE") == 0) {
+						printf("Found plane %i COLOR_RANGE prop. id: %u\n", new_planes[i]->plane_id, property.prop_id);
+
+						for (k = 0; k < 5; k++) {
+							prop_enum = &enum_blob_ptr[k];
+
+							if (prop_enum && strstr(prop_enum->name, "full")) {
+								printf("Prop enum name %s value %llu\n", prop_enum->name, prop_enum->value);
+								prop_ids[i][1] = property.prop_id;
+								prop_values[i][1] = prop_enum->value;
+								break;
+							}
+						}
+					}
+
+					if (prop_ids[i][0] && prop_ids[i][1]) {
+						break;
+					}
+				}
+			}
+		}
+	} 
+	
+	fflush(stdout);
+
+	free(props_ptr);
+	free(prop_values_ptr);
+	free(enum_blob_ptr);
+
+	struct drm_mode_obj_set_property set_prop;
+
+	for (i = 0; i < 2; i++) {
+		for (j = 0; j < 2; j++) {
+			if (prop_ids[i][j]) {
+				set_prop.obj_id = new_planes[i]->plane_id;
+				set_prop.obj_type = DRM_MODE_OBJECT_PLANE;
+				set_prop.prop_id = prop_ids[i][j];
+				set_prop.value = prop_values[i][j];
+
+				err = drmIoctl(drm_fd, DRM_IOCTL_MODE_OBJ_SETPROPERTY, &set_prop);
+
+				if (err) {
+					printf("Failed setting prop %u. Err: %i\n", prop_ids[i][j], err);
+				} else {
+					printf("Prop %u set to value %llu\n", prop_ids[i][j], prop_values[i][j]);
+				}
+			}
+		}
+	}
+
+	printf("Done color mode settings\n\n");
+	fflush(stdout);
 }
 
 void init_display(int width, int height, int format) {
@@ -607,9 +739,12 @@ void init_display(int width, int height, int format) {
 	}
 
 	if (buf_id) {
+		printf("Setting color format on planes\n");
+		fflush(stdout);
+		setPlanesColorFormat();
+
 		printf("Starting display thread\n");
 		fflush(stdout);
-
 		run_video_update = 1;
 		err = pthread_create(&display_thread, NULL, display_thread_loop, NULL);
 	} else {
@@ -620,6 +755,7 @@ void init_display(int width, int height, int format) {
 	if (err) {
 		printf("Failed to start draw thread\n");
 		fflush(stdout);
+		exit(1);
 	} else {
 		printf("Display initialized\n");
 		fflush(stdout);
