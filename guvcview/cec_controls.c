@@ -151,9 +151,8 @@ void* rx_loop(void *args) {
 	struct timeval tv;
 	int res;
 
-	tv.tv_sec = 0;
-	tv.tv_usec = 100 * 1000;
-
+	tv.tv_sec = 2;
+	tv.tv_usec = 0;
 
 	while (rx_run) {
 		FD_ZERO(&rd_fds);
@@ -207,8 +206,8 @@ void* rx_loop(void *args) {
 	return NULL;
 }
 
-void set_mode_monitor() {
-	unsigned int mode = CEC_MODE_PREVENT_REPLY;
+void set_mode() {
+	unsigned int mode = CEC_MODE_INITIATOR | CEC_MODE_FOLLOWER | CEC_MODE_PREVENT_REPLY;
 	send_ioctl(CEC_S_MODE, &mode);
 }
 
@@ -221,14 +220,14 @@ void init_cec_controls() {
 	}
 
 	setup_cec();
+	set_mode();
 
 	if (detect_devices() != 0) {
 		printf("CEC destination device not found.\n");
 		return;
 	}
-
+	
 	send_init_code();
-	set_mode_monitor();
 
 	fcntl(cec_fd, F_SETFL, fcntl(cec_fd, F_GETFL) | O_NONBLOCK);
 
