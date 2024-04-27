@@ -85,7 +85,7 @@ void put(buffer_t arr, uint8_t data) {
 		arr[1] = data;
 	} else if (arr[2] == 0) {
 		arr[2] = data;
-	} 
+	}
 }
 
 void* display_thread_loop(void *data) {
@@ -148,7 +148,7 @@ void* display_thread_loop(void *data) {
 
 			prev_display_buffer = 0;
 		}
-		
+
 	}
 }
 
@@ -174,14 +174,14 @@ int get_buffer_number() {
 	pthread_mutex_unlock(&current_values_lock);
 
 	return write_buffer;
-	
+
 }
 
 void put_buffer(uint8_t buffer_number) {
 	pthread_mutex_lock(&current_values_lock);
 
 	put(&current_display_buffer, buffer_number);
-	
+
 	pthread_cond_signal(&display_buffer_cond);
 
 	pthread_mutex_unlock(&current_values_lock);
@@ -203,7 +203,7 @@ void start_drm() {
 
 	int hdmi_buffer_id = 0;
 	int composite_buffer_id = 0;
-	
+
 	drmModeModeInfo composite_mode;
 	drmModeModeInfo hdmi_mode;
 
@@ -251,7 +251,7 @@ void start_drm() {
 		if (conn->connector_type == DRM_MODE_CONNECTOR_Composite) {
 			composite_connector_id = conn->connector_id;
 			composite_encoder_id = conn->encoder_id;
-			memcpy(&composite_mode, &conn->modes[1], sizeof(composite_mode));
+			memcpy(&composite_mode, &conn->modes[0], sizeof(composite_mode));
 		}
 
 		if (conn->connector_type == DRM_MODE_CONNECTOR_HDMIA) {
@@ -264,7 +264,7 @@ void start_drm() {
 	}
 	printf("------------\n");
 	printf("Done found connectors\n");
-	
+
 	printf("Encoders....\n");
 	drmModeEncoder *enc;
 
@@ -400,7 +400,7 @@ void find_new_plane() {
 
 				continue;
 			}
-			
+
 			drmModeFreePlane(plane);
 		}
 	}
@@ -440,11 +440,11 @@ void setPlanesColorFormat() {
 
 	__u32 *props_ptr = (__u32*) calloc(500, sizeof(__u32));
 	__u64 *prop_values_ptr = (__u64*) calloc(500, sizeof(__u64));
-	
+
 	struct drm_mode_get_property property;
 	struct drm_mode_property_enum *prop_enum;
 
-	struct drm_mode_property_enum *enum_blob_ptr = (struct drm_mode_property_enum*) 
+	struct drm_mode_property_enum *enum_blob_ptr = (struct drm_mode_property_enum*)
 		calloc(10, sizeof(struct drm_mode_property_enum));
 
 	// Should we support more than 2 crtcs?
@@ -472,7 +472,7 @@ void setPlanesColorFormat() {
 					property.count_values = 0;
 					property.flags = 0;
 					property.prop_id = props_ptr[j];
-					
+
 					memset(&property.name, 0, sizeof(property.name));
 
 					err = drmIoctl(drm_fd, DRM_IOCTL_MODE_GETPROPERTY, &property);
@@ -520,8 +520,8 @@ void setPlanesColorFormat() {
 				}
 			}
 		}
-	} 
-	
+	}
+
 	fflush(stdout);
 
 	free(props_ptr);
@@ -582,7 +582,7 @@ void init_display(int width, int height, int format) {
 		// I don't know if GPU supports 0x12 (vertical subsampling only)
 		printf("MJPEG YUV format not supported %x\n", format);
 	}
-	
+
 	find_new_plane();
 
 	// Calc buffer size and offsets
@@ -590,13 +590,13 @@ void init_display(int width, int height, int format) {
 	uint32_t h_aligned = (height + 32) & ~32;
 
 	uint32_t size_page_aligned = ((w_aligned * h_aligned) + PAGE_SIZE) & ~PAGE_SIZE;
-	
+
 	uint32_t u_offset = size_page_aligned;
 	uint32_t u_size = ((size_page_aligned / subsampling_divisor) + PAGE_SIZE) & ~PAGE_SIZE;
-	
+
 	uint32_t v_offset = u_offset + u_size;
 	uint32_t v_size = u_size;
-	
+
 	uint32_t total_size = v_offset + v_size;
 
 	buffer_size = (total_size + PAGE_SIZE) & ~PAGE_SIZE;
@@ -663,7 +663,7 @@ void init_display(int width, int height, int format) {
 	}
 
 	// Create and add buffer 2
-	
+
 	data2.size = buffer_size;
 	data2.flags = 0;
 	data2.handle = 0;
@@ -687,7 +687,7 @@ void init_display(int width, int height, int format) {
 	}
 
 	// Map buffer 2
-	
+
 	buf_fd2 = 0;
 
 	err = drmPrimeHandleToFD(drm_fd, data2.handle, DRM_RDWR, &buf_fd2);
@@ -762,7 +762,7 @@ void init_display(int width, int height, int format) {
 	}
 }
 
-void terminate_display() 
+void terminate_display()
 {
 	void *thread_return;
 
