@@ -47,7 +47,7 @@ static __THREAD_TYPE capture_thread;
 __MUTEX_TYPE capture_mutex = __STATIC_MUTEX_INIT;
 __COND_TYPE capture_cond;
 
-char *get_profile_name() 
+char *get_profile_name()
 {
 	return strdup("default.gpfl");
 }
@@ -100,12 +100,12 @@ int main(int argc, char *argv[])
             }
         }
     }
-	
+
 	// Register signal and signal handler
 	signal(SIGINT,  signal_callback_handler);
 	signal(SIGUSR1, signal_callback_handler);
 	signal(SIGUSR2, signal_callback_handler);
-	
+
 	/*localization*/
 	char* lc_all = setlocale (LC_ALL, "");
 	char* lc_dir = bindtextdomain (GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
@@ -115,21 +115,25 @@ int main(int argc, char *argv[])
 	/*parse command line options*/
 	if(options_parse(argc, argv))
 		return 0;
-	
+
 	printf("GUVCVIEW: version %s\n", VERSION);
 
 	/*get command line options*/
 	options_t *my_options = options_get();
 
-	char *config_path = smart_cat(getenv("HOME"), '/', ".config/guvcview2");
+	char *config_path = smart_cat(getenv("HOME"), '/', ".config");
 	mkdir(config_path, 0777);
+
+	char *guvc_config_path = smart_cat(getenv("HOME"), '/', ".config/guvcview2");
+	mkdir(guvc_config_path, 0777);
 
 	char *device_name = get_file_basename(my_options->device);
 
-	char *config_file = smart_cat(config_path, '/', device_name);
+	char *config_file = smart_cat(guvc_config_path, '/', device_name);
 
 	/*clean strings*/
 	free(config_path);
+	free(guvc_config_path);
 	free(device_name);
 
 	/*load config data*/
@@ -142,7 +146,7 @@ int main(int argc, char *argv[])
 	config_t *my_config = config_get();
 
 	debug_level = my_options->verbosity;
-	
+
 	if (debug_level > 1) printf("GUVCVIEW: language catalog=> dir:%s type:%s cat:%s.mo\n",
 		lc_dir, lc_all, txtdom);
 
@@ -161,7 +165,7 @@ int main(int argc, char *argv[])
 			sleep(5);
 			continue;
 		}
-		
+
 		if(my_options->disable_libv4l2)
 			v4l2core_disable_libv4l2(vd);
 
@@ -180,7 +184,7 @@ int main(int argc, char *argv[])
 		/*select video codec*/
 		if(debug_level > 1)
 			printf("GUVCVIEW: setting video codec to '%s'\n", my_config->video_codec);
-			
+
 
 		/*check if need to load a profile*/
 		if(my_options->prof_filename)
