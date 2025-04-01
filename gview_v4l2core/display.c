@@ -73,19 +73,19 @@ static uint8_t run_video_update;
 static pthread_t display_thread;
 
 void forward(buffer_t arr) {
-	arr[0] = arr[1];
-	arr[1] = arr[2];
-	arr[2] = 0;
+	// arr[0] = arr[1];
+	// arr[1] = arr[2];
+	// arr[2] = 0;
 }
 
 void put(buffer_t arr, uint8_t data) {
-	if (arr[0] == 0) {
-		arr[0] = data;
-	} else if (arr[1] == 0) {
-		arr[1] = data;
-	} else if (arr[2] == 0) {
-		arr[2] = data;
-	}
+	// if (arr[0] == 0) {
+	// 	arr[0] = data;
+	// } else if (arr[1] == 0) {
+	// 	arr[1] = data;
+	// } else if (arr[2] == 0) {
+	// 	arr[2] = data;
+	// }
 }
 
 void* display_thread_loop(void *data) {
