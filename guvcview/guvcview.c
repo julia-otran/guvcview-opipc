@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
 
 		if (ret == ENODEV) {
 			printf("GUVCVIEW: no such device, will retry until device is available\n");
+			close_v4l2_device_handler();
 			persist_run = 1;
 			ret = 0;
 		} else {
