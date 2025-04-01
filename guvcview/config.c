@@ -304,7 +304,7 @@ void config_update(options_t *my_options)
 		my_config.video_name = strdup(my_options->video_name);
 	}
 	if(my_options->video_path)
-	{/home/webcam/.config/guvcview2/video0
+	{
 		if(my_config.video_path)
 			free(my_config.video_path);
 		my_config.video_path = strdup(my_options->video_path);
