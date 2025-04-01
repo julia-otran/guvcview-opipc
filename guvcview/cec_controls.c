@@ -61,7 +61,7 @@ void setup_cec() {
 	const char *osd_name = "BMD HDMI";
 
 	send_ioctl(CEC_ADAP_G_CAPS, &caps);
-	
+
 	memset(&laddrs, 0, sizeof(laddrs));
 
 	if (caps.capabilities & CEC_CAP_LOG_ADDRS) {
@@ -78,7 +78,7 @@ void setup_cec() {
 		laddrs.primary_device_type[0] = CEC_OP_PRIM_DEVTYPE_RECORD;
 		laddrs.log_addr_type[0] = CEC_LOG_ADDR_TYPE_RECORD;
 		laddrs.all_device_types[0] = CEC_OP_ALL_DEVTYPE_RECORD;
-		
+
 		laddrs.features[0][0] = CEC_OP_FEAT_RC_SRC_HAS_DEV_ROOT_MENU | CEC_OP_FEAT_RC_SRC_HAS_DEV_SETUP_MENU | CEC_OP_FEAT_RC_SRC_HAS_CONTENTS_MENU | CEC_OP_FEAT_RC_SRC_HAS_MEDIA_TOP_MENU | CEC_OP_FEAT_RC_SRC_HAS_MEDIA_CONTEXT_MENU;
 
 		laddrs.features[0][1] = CEC_OP_FEAT_DEV_HAS_DECK_CONTROL | CEC_OP_FEAT_DEV_HAS_SET_AUDIO_RATE | CEC_OP_FEAT_DEV_SOURCE_HAS_ARC_RX;
@@ -95,7 +95,7 @@ int detect_devices() {
 	send_ioctl(CEC_ADAP_G_LOG_ADDRS, &laddrs);
 
 	self_addr = laddrs.log_addr[0];
-	
+
 	cec_msg_init(&msg, self_addr, CEC_LOG_ADDR_TV);
 	send_ioctl(CEC_TRANSMIT, &msg);
 
@@ -123,7 +123,7 @@ void send_init_code() {
 void add_message_to_queue(struct cec_msg *msg) {
 	struct message_node *node;
 
-	node = malloc(sizeof(node));
+	node = malloc(sizeof(struct message_node));
 	node->code = msg->msg[1];
 	node->data1 = msg->msg[2];
 	node->data2 = msg->msg[3];
@@ -137,7 +137,7 @@ void add_message_to_queue(struct cec_msg *msg) {
 	} else {
 		message_queue_end->next = node;
 	}
-	
+
 	message_queue_end = node;
 
 	pthread_mutex_unlock(&message_queue_mutex);
@@ -159,7 +159,7 @@ void* rx_loop(void *args) {
 		FD_ZERO(&ex_fds);
 		FD_SET(cec_fd, &rd_fds);
 		FD_SET(cec_fd, &ex_fds);
-		
+
 		res = select(cec_fd + 1, &rd_fds, NULL, &ex_fds, &tv);
 
 		if (res < 0) {
@@ -186,7 +186,7 @@ void* rx_loop(void *args) {
 			if (from != CEC_LOG_ADDR_TV) {
 				continue;
 			}
-			
+
 			add_message_to_queue(&msg);
 		}
 
@@ -226,7 +226,7 @@ void init_cec_controls() {
 		printf("CEC destination device not found.\n");
 		return;
 	}
-	
+
 	send_init_code();
 
 	fcntl(cec_fd, F_SETFL, fcntl(cec_fd, F_GETFL) | O_NONBLOCK);
@@ -276,7 +276,7 @@ int apply_value(v4l2_dev_t *my_vd, const char *name, int min, int max, int val) 
 
 	 while (ctrl != NULL) {
 		 if (
-			(strcmp(ctrl->control.name, name) == 0) &&
+			(strcmp((const char*)ctrl->control.name, name) == 0) &&
 			(
 			 	(ctrl->control.type == V4L2_CTRL_TYPE_INTEGER) ||
 				(ctrl->control.type == V4L2_CTRL_TYPE_U8) ||
@@ -359,7 +359,7 @@ int process_pivot(v4l2_dev_t *my_vd, struct message_node *msg) {
         }
 
         int val = (pivot_data2 << 8) | msg->data1;
-	
+
 	// I will map pivot to bright, it does not make sence, but I doubt that some webcam could have such control.
 	return apply_value(my_vd, "Bright", 0, 2048, val);
 }
@@ -401,7 +401,7 @@ int poll_cec_events(v4l2_dev_t *my_vd) {
 	do {
 		pthread_mutex_lock(&message_queue_mutex);
 		node = message_queue_start;
-		
+
 		if (node == NULL) {
 			pthread_mutex_unlock(&message_queue_mutex);
 			break;
@@ -426,12 +426,12 @@ int poll_cec_events(v4l2_dev_t *my_vd) {
 				// I also was wondering create a OpenGL shader to process the image,
 				// maybe we could simulate all color granding features
 				// (for a live event, I think it would be a nice feature).
-				// But then there's the problem. 
+				// But then there's the problem.
 				// How to get a physical address of a OGL PBO mapped buffer? (this is a discrete gpu, the phy address will always resolve to a cedar write capable address)
 				// If anyone discover, please tell me. (I did some experiments with /proc/<pid>/pagemap, but I was unluckily. will try again, if it works may open the pandora box ahaha)
 				//
 				// Memcpy the codec output is tooo much slow. So need to decode direct to video buffer
-				// 
+				//
 				break;
 			case CEC_DEV_LUMINOSITY_CODE:
 				changed |= process_luma(my_vd, node);

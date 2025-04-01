@@ -111,7 +111,7 @@ int ve_open(void)
 	ve.first_memchunk.phys_addr = info.reserved_mem - PAGE_OFFSET;
 	ve.first_memchunk.size = info.reserved_mem_size;
 
-	printf("Memory for cedar; addr %x size %i", info.reserved_mem, info.reserved_mem_size);
+	printf("Memory for cedar: addr %x size %i\n", info.reserved_mem, info.reserved_mem_size);
 
 	ioctl(ve.fd, IOCTL_ENGINE_REQ, 0);
 	ioctl(ve.fd, IOCTL_ENABLE_VE, 0);

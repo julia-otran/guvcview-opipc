@@ -192,7 +192,7 @@ static uint8_t *phy_input;
 
 void log_time(struct timespec *a, struct timespec *b) {
 	long deltams = (b->tv_sec * 1000 + b->tv_nsec / 1000000) - (a->tv_sec * 1000 + a->tv_nsec / 1000000);
-	// printf(": Step took %ld ms\n", deltams); 
+	// printf(": Step took %ld ms\n", deltams);
 }
 
 void hw_decode_jpeg(struct jpeg_t *jpeg)
@@ -240,8 +240,8 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	set_format(jpeg, ve_regs);
 
 	// set output buffers (Luma / Croma)
-	writel(luma_output, ve_regs + VE_MPEG_ROT_LUMA);
-	writel(chroma_u_output, ve_regs + VE_MPEG_ROT_CHROMA);
+	writel((uint32_t)luma_output, ve_regs + VE_MPEG_ROT_LUMA);
+	writel((uint32_t)chroma_u_output, ve_regs + VE_MPEG_ROT_CHROMA);
 
 	// set size
 	set_size(jpeg, ve_regs);
@@ -250,7 +250,7 @@ void hw_decode_jpeg(struct jpeg_t *jpeg)
 	writel(0x00000000, ve_regs + VE_MPEG_SDROT_CTRL);
 
 	// input end
-	writel(phy_input + input_size - 1, ve_regs + VE_MPEG_VLD_END);
+	writel((uint32_t)(phy_input + input_size - 1), ve_regs + VE_MPEG_VLD_END);
 
 	// ??
 	writel(0x0000007c, ve_regs + VE_MPEG_CTRL);
@@ -295,7 +295,7 @@ void hw_init(int width, int height) {
 
 void hw_init_display(struct jpeg_t *jpeg) {
 	init_display(jpeg->width, jpeg->height, get_format(jpeg));
-	
+
 	printf("Getting outputs\n");
 
 	int dma_fd1 = get_dma_fd1();
@@ -317,7 +317,7 @@ void hw_init_display(struct jpeg_t *jpeg) {
 	uint32_t v_offset;
 
 	get_offsets(&u_offset, &v_offset);
-	
+
 	luma_output1 = dma_phy1;
 	chroma_u_output1 = luma_output1 + u_offset;
 	chroma_v_output1 = luma_output1 + v_offset;
@@ -397,13 +397,12 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
         struct jpeg_t jpeg;
 	uint8_t *virt_input;
 
-	// printf("JPEG Decode main\n");
-	// fflush(stdout);
-
         memset(&jpeg, 0, sizeof(jpeg));
 
-        if (!parse_jpeg(&jpeg, data, dataLen))
+        if (!parse_jpeg(&jpeg, data, dataLen)) {
                 printf("ERROR: Can't parse JPEG\n");
+		return;
+	}
 
 	if (!display_initialized) {
 		if (get_format(&jpeg) == 0) {
@@ -415,11 +414,11 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
 		hw_init_display(&jpeg);
 	}
 
-	phy_input = ve_virt2phys(jpeg.data);
+	phy_input = (uint8_t*) ve_virt2phys(jpeg.data);
 	virt_input = jpeg.data;
 
 	if (phy_input == 0) {
-		phy_input = ve_virt2phys(input_buffer);
+		phy_input = (uint8_t*) ve_virt2phys(input_buffer);
 		virt_input = input_buffer;
 		// printf("Will do memcpy dst: %p src: %p len: %i\n", input_buffer, jpeg.data, jpeg.data_len);
 		// fflush(stdout);

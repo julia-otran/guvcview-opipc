@@ -13,7 +13,7 @@ int get_dma_fd2();
 int get_dma_fd3();
 
 uint8_t* get_buffer_1();
-uint8_t* get_buffer_1();
+uint8_t* get_buffer_2();
 uint8_t* get_buffer_3();
 
 void get_offsets(uint32_t *u_offset, uint32_t *v_offset);

@@ -67,8 +67,6 @@ void write_file(v4l2_dev_t *my_vd) {
 	v4l2_ctrl_t *ctrl = v4l2core_get_control_list(my_vd);
 	json = json_object_new_array();
 
-	int32_t value;
-
 	while (ctrl != NULL) {
 		const char *type = control_type_name(ctrl->control.type);
 
@@ -83,7 +81,7 @@ void write_file(v4l2_dev_t *my_vd) {
 			json_object_object_add(ctrl_json, "ctrlType", json_object_new_string(type));
 
 			if (
-					ctrl->control.type == V4L2_CTRL_TYPE_MENU || 
+					ctrl->control.type == V4L2_CTRL_TYPE_MENU ||
 					ctrl->control.type == V4L2_CTRL_TYPE_INTEGER_MENU) {
 				json_object_object_add(ctrl_json, "ctrlMenu", get_menu_ctrls_json(ctrl));
 			}
@@ -141,14 +139,17 @@ int read_controls(v4l2_dev_t *my_vd) {
 	if (size > 500000) {
 		printf("Controls file too large. Skipping.\n");
 		fclose(in);
-		return;
+		return 0;
 	}
 
 	fseek(in, 0L, SEEK_SET);
 
 	char *buffer = malloc(size);
 
-	fgets(buffer, size, in);
+	if (fgets(buffer, size, in) != buffer) {
+		fclose(in);
+		return 0;
+	}
 
 	fclose(in);
 
@@ -166,7 +167,7 @@ int read_controls(v4l2_dev_t *my_vd) {
 
 	for (i = 0; i < ctrls_length; i++) {
 		ctrl = json_object_array_get_idx(json, i);
-		name = json_object_get_string(json_object_object_get(ctrl, "ctrlName"));
+		name = (char*) json_object_get_string(json_object_object_get(ctrl, "ctrlName"));
 		value = json_object_get_int(json_object_object_get(ctrl, "ctrlValue"));
 		if (set_control(my_vd, (const char*)name, value)) {
 			changed = 1;

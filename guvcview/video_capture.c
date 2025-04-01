@@ -20,6 +20,7 @@
 ********************************************************************************/
 
 #define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -308,7 +309,7 @@ int key_RIGHT_callback(void *data)
 v4l2_dev_t *create_v4l2_device_handler(const char *device)
 {
 	my_vd = v4l2core_init_dev(device);
-	
+
 	return my_vd;
 }
 
@@ -361,14 +362,14 @@ void *capture_loop(void *data)
 
 	/*reset quit flag*/
 	quit = 0;
-	
+
 	if(debug_level > 1)
-		printf("GUVCVIEW: capture thread (tid: %u)\n", 
+		printf("GUVCVIEW: capture thread (tid: %u)\n",
 			(unsigned int) syscall (SYS_gettid));
 
 	int ret = 0;
 	int err = 0;
-	
+
 	v4l2core_start_stream(my_vd);
 	init_cec_controls();
 
@@ -432,7 +433,7 @@ void *capture_loop(void *data)
 			if(do_soft_autofocus || do_soft_focus)
 				do_soft_focus = v4l2core_soft_autofocus_run(my_vd, frame);
 
-			// Three control sources, however there's no way to send 
+			// Three control sources, however there's no way to send
 			// values back to CEC, at least I even tryied
 			controls_changed = 0;
 			load_file_controls(my_vd, &controls_changed);
@@ -444,7 +445,7 @@ void *capture_loop(void *data)
 			}
 
 			/* finally render the frame */
-			// snprintf(render_caption, 29, "Guvcview  (%2.2f fps)", 
+			// snprintf(render_caption, 29, "Guvcview  (%2.2f fps)",
 			if (count > 50) {
 			  printf("FPS = %2.2f\n", v4l2core_get_realfps(my_vd));
 			  count = 0;

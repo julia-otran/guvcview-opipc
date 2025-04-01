@@ -347,7 +347,7 @@ void start_drm() {
 			printf("Possible CRTCs: %i\n", plane->possible_crtcs);
 
 			if (plane->fb_id) {
-				printf("Clearing plane....\n", plane->plane_id);
+				printf("Clearing plane: %i....\n", plane->plane_id);
 				fflush(stdout);
 
 				drmModeSetPlane(drm_fd, plane->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -370,7 +370,7 @@ void find_new_plane() {
         plane_res = drmModeGetPlaneResources(drm_fd);
 
 	new_planes = (drmModePlane**) calloc(count_crtcs, sizeof(drmModePlane*));
-	memset(new_planes, NULL, count_crtcs * sizeof(drmModePlane*));
+	memset(new_planes, 0, count_crtcs * sizeof(drmModePlane*));
 
 	for (i = 0; i < plane_res->count_planes; i++) {
 		has_format = 0;
@@ -455,8 +455,8 @@ void setPlanesColorFormat() {
 			obj_get_props_data.obj_id = new_planes[i]->plane_id;
 			obj_get_props_data.obj_type = DRM_MODE_OBJECT_PLANE;
 			obj_get_props_data.count_props = 500;
-			obj_get_props_data.props_ptr = (__u64) props_ptr;
-			obj_get_props_data.prop_values_ptr = (__u64) prop_values_ptr;
+			obj_get_props_data.props_ptr = (__u64) ((__u32)props_ptr);
+			obj_get_props_data.prop_values_ptr = (__u64) ((__u32)prop_values_ptr);
 
 			err = drmIoctl(drm_fd, DRM_IOCTL_MODE_OBJ_GETPROPERTIES, &obj_get_props_data);
 
@@ -467,7 +467,7 @@ void setPlanesColorFormat() {
 
 			for (j = 0; j < obj_get_props_data.count_props; j++) {
 				if (props_ptr[j]) {
-					property.enum_blob_ptr = (__u64) enum_blob_ptr;
+					property.enum_blob_ptr = (__u64) ((__u32)enum_blob_ptr);
 					property.count_enum_blobs = 10;
 					property.count_values = 0;
 					property.flags = 0;
