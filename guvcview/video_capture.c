@@ -458,8 +458,11 @@ void *capture_loop(void *data)
 		}
 
 		if (err == ENODEV) {
+			printf("V4L2_CORE: ENODEV returning error\n");
+			stop_cec_controls();
 			v4l2core_stop_stream(my_vd);
 			v4l2core_close_dev(my_vd);
+			printf("V4L2_CORE: Device closed\n");
 			return ((void *)err);
 		}
 	}
