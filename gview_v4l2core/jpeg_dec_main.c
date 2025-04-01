@@ -414,16 +414,11 @@ void hw_decode_jpeg_main(uint8_t* data, long dataLen) {
 		hw_init_display(&jpeg);
 	}
 
-	phy_input = (uint8_t*) ve_virt2phys(jpeg.data);
-	virt_input = jpeg.data;
-
-	if (phy_input == 0) {
-		phy_input = (uint8_t*) ve_virt2phys(input_buffer);
-		virt_input = input_buffer;
-		// printf("Will do memcpy dst: %p src: %p len: %i\n", input_buffer, jpeg.data, jpeg.data_len);
-		// fflush(stdout);
-		memcpy(input_buffer, jpeg.data, jpeg.data_len);
-	}
+	phy_input = (uint8_t*) ve_virt2phys(input_buffer);
+	virt_input = input_buffer;
+	// printf("Will do memcpy dst: %p src: %p len: %i\n", input_buffer, jpeg.data, jpeg.data_len);
+	// fflush(stdout);
+	memcpy(input_buffer, jpeg.data, jpeg.data_len);
 
 	ve_flush_cache(virt_input, jpeg.data_len);
 

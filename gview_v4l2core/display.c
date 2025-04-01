@@ -73,19 +73,19 @@ static uint8_t run_video_update;
 static pthread_t display_thread;
 
 void forward(buffer_t arr) {
-	// arr[0] = arr[1];
-	// arr[1] = arr[2];
-	// arr[2] = 0;
+	arr[0] = arr[1];
+	arr[1] = arr[2];
+	arr[2] = 0;
 }
 
 void put(buffer_t arr, uint8_t data) {
-	// if (arr[0] == 0) {
-	// 	arr[0] = data;
-	// } else if (arr[1] == 0) {
-	// 	arr[1] = data;
-	// } else if (arr[2] == 0) {
-	// 	arr[2] = data;
-	// }
+	if (arr[0] == 0) {
+		arr[0] = data;
+	} else if (arr[1] == 0) {
+		arr[1] = data;
+	} else if (arr[2] == 0) {
+		arr[2] = data;
+	}
 }
 
 void* display_thread_loop(void *data) {
@@ -766,9 +766,16 @@ void terminate_display()
 {
 	void *thread_return;
 
+	if (src_width == 0 && src_height == 0) {
+		return;
+	}
+
 	run_video_update = 0;
 	pthread_cond_signal(&display_buffer_cond);
 	pthread_join(display_thread, &thread_return);
+
+	src_width = 0;
+	src_height = 0;
 
 	for (int i = 0; i < count_crtcs; i++) {
 		if (new_planes[i]) {

@@ -112,7 +112,7 @@ int jpeg_decode(uint8_t *out_buf, uint8_t *in_buf, int size)
 	assert(jpeg_ctx != NULL);
 	assert(in_buf != NULL);
 
-	// hw_decode_jpeg_main(in_buf, size);
+	hw_decode_jpeg_main(in_buf, size);
 
 	return 0;
 }
