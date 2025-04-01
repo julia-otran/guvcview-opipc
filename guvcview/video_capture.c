@@ -371,7 +371,7 @@ void *capture_loop(void *data)
 	int err = 0;
 
 	v4l2core_start_stream(my_vd);
-	init_cec_controls();
+	// init_cec_controls();
 
 	v4l2_frame_buff_t *frame = NULL; //pointer to frame buffer
 
@@ -388,7 +388,7 @@ void *capture_loop(void *data)
 			printf("RESTARTING -----\n");
 			restart = 0; /*reset*/
 
-			stop_cec_controls();
+			// stop_cec_controls();
 
 			v4l2core_stop_stream(my_vd);
 
@@ -421,7 +421,7 @@ void *capture_loop(void *data)
 					v4l2core_get_frame_height(my_vd));
 
 			// Restart CEC to get values back from it
-			init_cec_controls();
+			// init_cec_controls();
 			v4l2core_start_stream(my_vd);
 
 		}
@@ -460,14 +460,14 @@ void *capture_loop(void *data)
 
 		if (err == ENODEV) {
 			printf("V4L2_CORE: ENODEV returning error\n");
-			stop_cec_controls();
+			// stop_cec_controls();
 			v4l2core_stop_stream(my_vd);
 			printf("V4L2_CORE: Device closed\n");
 			return ((void *)err);
 		}
 	}
 
-	stop_cec_controls();
+	// stop_cec_controls();
 	v4l2core_stop_stream(my_vd);
 
 	return ((void *) 0);

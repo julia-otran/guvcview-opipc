@@ -51,11 +51,11 @@ typedef struct _jpeg_decoder_context_t
 	int width;
 	int height;
 	int pic_size;
-	
+
 } jpeg_decoder_context_t;
 
 static jpeg_decoder_context_t *jpeg_ctx = NULL;
-/* 
+/*
  * init (m)jpeg decoder context
  * args:
  *    width - image width
@@ -82,7 +82,7 @@ int jpeg_init_decoder(int width, int height)
 		fprintf(stderr, "V4L2_CORE: FATAL memory allocation failure (jpeg_init_decoder): %s\n", strerror(errno));
 		exit(-1);
 	}
-	
+
 	jpeg_ctx->width = width;
 	jpeg_ctx->height = height;
         jpeg_ctx->pic_size = width * height * 4;
@@ -112,7 +112,7 @@ int jpeg_decode(uint8_t *out_buf, uint8_t *in_buf, int size)
 	assert(jpeg_ctx != NULL);
 	assert(in_buf != NULL);
 
-	hw_decode_jpeg_main(in_buf, size, out_buf);
+	// hw_decode_jpeg_main(in_buf, size);
 
 	return 0;
 }
@@ -131,7 +131,7 @@ void jpeg_close_decoder()
 {
 	if(jpeg_ctx == NULL)
 		return;
-		
+
 	free(jpeg_ctx);
 
 	jpeg_ctx = NULL;
