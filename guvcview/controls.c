@@ -117,7 +117,7 @@ int set_control(v4l2_dev_t *my_vd, const char *name, int32_t value) {
 				int result = v4l2core_set_control_value_by_id(my_vd, ctrl->control.id);
 
 				if (result != 0) {
-					printf("Set control value returned %i", result);
+					printf("Set control value returned %i\n", result);
 				}
 
 				changed = 1;
