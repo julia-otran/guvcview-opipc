@@ -125,11 +125,11 @@ void __attribute__ ((constructor)) v4l2core_init()
 {
 	//initialize device list (with udev monitoring)
 	v4l2core_init_device_list();
-	
+
 	/*set defaults*/
 	frame_queue_size = 1;
 	disable_libv4l2 = 0;
-	
+
 }
 
 /*
@@ -208,7 +208,7 @@ static int check_v4l2_dev(v4l2_dev_t *vd)
 	{
 		fprintf(stderr, "V4L2_CORE: no valid frame formats (with valid sizes) found for device\n");
 		return ret;
-	}	
+	}
 
 	/*enumerate device controls*/
 	enumerate_v4l2_control(vd);
@@ -527,7 +527,7 @@ static int set_v4l2_framerate (v4l2_dev_t *vd)
 			}
 			break;
 	}
-	
+
 	if(stream_status == STRM_OK)
 	{
 		query_buff(vd); /*also mmaps the buffers*/
@@ -720,12 +720,12 @@ void v4l2core_define_fps(v4l2_dev_t *vd, int num, int denom)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	if(num > 0)
 		vd->fps_num = num;
 	if(denom > 0)
 		vd->fps_denom = denom;
-	
+
 	if(verbosity > 2)
 		printf("V4L2_CORE: fps configured to %i/%i\n", vd->fps_num, vd->fps_denom);
 }
@@ -744,8 +744,8 @@ int v4l2core_get_fps_num(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
-	return vd->fps_num;	
+
+	return vd->fps_num;
 }
 
 /*
@@ -762,8 +762,8 @@ int v4l2core_get_fps_denom(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
-	return vd->fps_denom;	
+
+	return vd->fps_denom;
 }
 
 /*
@@ -780,7 +780,7 @@ double v4l2core_get_realfps(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return(vd->real_fps);
 }
 
@@ -798,8 +798,8 @@ const char *v4l2core_get_videodevice(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
-	return (const char *) vd->videodevice;	
+
+	return (const char *) vd->videodevice;
 }
 
 /*
@@ -816,8 +816,8 @@ int v4l2core_get_number_formats(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
-	return vd->numb_formats;	
+
+	return vd->numb_formats;
 }
 
 /*
@@ -834,7 +834,7 @@ int v4l2core_has_pantilt_id(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->has_pantilt_control_id;
 }
 
@@ -852,7 +852,7 @@ int v4l2core_has_focus_control_id(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->has_focus_control_id;
 }
 
@@ -871,7 +871,7 @@ void v4l2core_set_bayer_pix_order(v4l2_dev_t *vd, uint8_t order)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	vd->bayer_pix_order = order;
 }
 
@@ -889,7 +889,7 @@ uint8_t v4l2core_get_bayer_pix_order(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->bayer_pix_order;
 }
 
@@ -908,7 +908,7 @@ void v4l2core_set_isbayer(v4l2_dev_t *vd, uint8_t flag)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	vd->isbayer = flag;
 }
 
@@ -926,7 +926,7 @@ uint8_t v4l2core_get_isbayer(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->isbayer;
 }
 
@@ -944,7 +944,7 @@ int v4l2core_get_this_device_index(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->this_device;
 }
 
@@ -989,7 +989,7 @@ int v4l2core_start_stream(v4l2_dev_t *vd)
 	}
 
 	vd->streaming = STRM_OK;
-	
+
 	if(verbosity > 2)
 		printf("V4L2_CORE: (VIDIOC_STREAMON) stream_status = STRM_OK\n");
 
@@ -1015,7 +1015,7 @@ int v4l2core_request_stop_stream(v4l2_dev_t *vd)
 		return -1;
 
 	vd->streaming = STRM_REQ_STOP;
-	
+
 	if(verbosity > 2)
 		printf("V4L2_CORE: (request stream stop) stream_status = STRM_REQ_STOP\n");
 
@@ -1056,10 +1056,10 @@ int v4l2core_stop_stream(v4l2_dev_t *vd)
 	}
 
 	vd->streaming = STRM_STOP;
-	
+
 	if(verbosity > 2)
 		printf("V4L2_CORE: (VIDIOC_STREAMOFF) stream_status = STRM_STOP\n");
-		
+
 	return ret;
 }
 
@@ -1078,7 +1078,7 @@ static int get_next_ready_frame(v4l2_dev_t *vd)
 		if(vd->frame_queue[i].status == FRAME_READY)
 			return (i);
 	}
-	
+
 	return -1;
 }
 
@@ -1093,39 +1093,39 @@ static int process_input_buffer(v4l2_dev_t *vd)
 {
 	/*get next available frame in queue*/
 	int qind = get_next_ready_frame(vd);
-	
+
 	if(verbosity > 2)
 		printf("V4L2_CORE: process frame queue index %i\n", qind);
-	
+
 	if(qind < 0 || qind >= vd->frame_queue_size)
 	{
 		if(verbosity > 2)
 		fprintf(stderr,"V4L2_CORE: frame queue index %i is invalid (no free frames in queue?)\n", qind);
-		return -1; 
+		return -1;
 	}
-	
+
 	vd->frame_queue[qind].status = FRAME_DECODING;
-	
+
 	/*
      * driver timestamp is unreliable
 	 * use monotonic system time
 	 */
 	vd->frame_queue[qind].timestamp = ns_time_monotonic();
-	
+
 	vd->frame_queue[qind].index = vd->buf.index;
-	 
+
 	vd->frame_index++;
-	
+
 	vd->frame_queue[qind].raw_frame_size = vd->buf.bytesused;
 	if(vd->frame_queue[qind].raw_frame_size == 0)
 	{
 		if(verbosity > 1)
 			fprintf(stderr, "V4L2_CORE: VIDIOC_QBUF returned buf.bytesused = 0 \n");
 	}
-	
+
 	/*point vd->raw_frame to current frame buffer*/
 	vd->frame_queue[qind].raw_frame = vd->mem[vd->buf.index];
-	
+
 	/*determine real fps every 3 sec aprox.*/
 	fps_frame_count++;
 
@@ -1138,10 +1138,10 @@ static int process_input_buffer(v4l2_dev_t *vd)
 		fps_frame_count = 0;
 		fps_ref_ts = vd->frame_queue[qind].timestamp;
 	}
-	
+
 	return qind;
-} 
- 
+}
+
 /*
  * gets the next video frame (must be released after processing)
  * args:
@@ -1170,7 +1170,7 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd, int *err)
 	int ret = check_frame_available(vd);
 
 	int qind = -1;
-	
+
 	if (ret < 0)
 		return NULL;
 
@@ -1256,7 +1256,7 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd, int *err)
 
 	vd->frame_queue[qind].width = vd->format.fmt.pix.width;
 	vd->frame_queue[qind].height = vd->format.fmt.pix.height;
-	
+
 	return &vd->frame_queue[qind];
 }
 
@@ -1274,15 +1274,15 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd, int *err)
 int v4l2core_release_frame(v4l2_dev_t *vd, v4l2_frame_buff_t *frame)
 {
 	int ret = 0;
-	
+
 	//match the v4l2_buffer with the correspondig frame
 	vd->buf.index = frame->index;
-	
+
 	switch(vd->cap_meth)
 	{
 		case IO_READ:
 			break;
-		
+
 		case IO_MMAP:
 		default:
 			/* queue the buffer */
@@ -1290,9 +1290,9 @@ int v4l2core_release_frame(v4l2_dev_t *vd, v4l2_frame_buff_t *frame)
 
 			if(ret)
 				fprintf(stderr, "V4L2_CORE: (VIDIOC_QBUF) Unable to queue buffer %i: %s\n", frame->index, strerror(errno));
-			break;	
+			break;
 	}
-	
+
 	/*lock the mutex*/
 	__LOCK_MUTEX( __PMUTEX );
 	frame->raw_frame = NULL;
@@ -1300,10 +1300,10 @@ int v4l2core_release_frame(v4l2_dev_t *vd, v4l2_frame_buff_t *frame)
 	frame->status = FRAME_READY;
 	/*unlock the mutex*/
 	__UNLOCK_MUTEX( __PMUTEX );
-	
+
 	if (ret < 0)
 		return E_QBUF_ERR;
-	
+
 	return E_OK;
 }
 
@@ -1327,7 +1327,7 @@ v4l2_frame_buff_t *v4l2core_get_decoded_frame(v4l2_dev_t *vd, int *err)
 			fprintf(stderr, "V4L2_CORE: Error - Couldn't decode frame\n");
 		}
 	}
-	
+
 	return frame;
 }
 
@@ -1344,7 +1344,7 @@ v4l2_frame_buff_t *v4l2core_get_decoded_frame(v4l2_dev_t *vd, int *err)
  *
  * returns: error code ( E_OK)
  */
-static int try_video_stream_format(v4l2_dev_t *vd, 
+static int try_video_stream_format(v4l2_dev_t *vd,
 	int width, int height, int pixelformat)
 {
 	/*assertions*/
@@ -1508,7 +1508,7 @@ int v4l2core_get_frame_width(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->format.fmt.pix.width;
 }
 
@@ -1526,7 +1526,7 @@ int v4l2core_get_frame_height(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->format.fmt.pix.height;
 }
 
@@ -1544,7 +1544,7 @@ int v4l2core_get_requested_frame_format(v4l2_dev_t *vd)
 {
 	/*asserts*/
 	assert(vd != NULL);
-	
+
 	return vd->requested_fmt;
 }
 
@@ -1604,7 +1604,7 @@ void v4l2core_prepare_valid_format(v4l2_dev_t *vd)
  *
  * returns: none
  */
-void v4l2core_prepare_new_resolution(v4l2_dev_t *vd, 
+void v4l2core_prepare_new_resolution(v4l2_dev_t *vd,
 	int new_width, int new_height)
 {
 	/*asserts*/
@@ -1615,7 +1615,7 @@ void v4l2core_prepare_new_resolution(v4l2_dev_t *vd,
 	if(format_index < 0)
 		format_index = 0;
 
-	int resolution_index = v4l2core_get_format_resolution_index(vd, 
+	int resolution_index = v4l2core_get_format_resolution_index(vd,
 		format_index, new_width, new_height);
 
 	if(resolution_index < 0)
@@ -1724,7 +1724,7 @@ v4l2_dev_t* v4l2core_init_dev(const char *device)
 {
 	/*assertions*/
 	assert(device != NULL);
-	
+
 	///*make sure to close and clean any existing device data*/
 	//if(vd != NULL)
 	//	v4l2core_close_dev();
@@ -1740,7 +1740,7 @@ v4l2_dev_t* v4l2core_init_dev(const char *device)
 	v4l2_dev_t* vd = calloc(1, sizeof(v4l2_dev_t));
 
 	assert(vd != NULL);
-	
+
 	/*init the device mutex*/
 	__INIT_MUTEX(__PMUTEX);
 
@@ -1758,7 +1758,7 @@ v4l2_dev_t* v4l2core_init_dev(const char *device)
 	vd->frame_queue_size = frame_queue_size;
 	/*alloc frame buffer queue*/
 	vd->frame_queue = calloc(vd->frame_queue_size, sizeof(v4l2_frame_buff_t));
-	
+
 	vd->h264_no_probe_default = 0;
 	vd->h264_SPS = NULL;
 	vd->h264_SPS_size = 0;
@@ -1787,7 +1787,7 @@ v4l2_dev_t* v4l2core_init_dev(const char *device)
 		vd->this_device = 0;
 
 	v4l2_device_list_t *device_list = get_device_list();
-	
+
 	if(device_list && device_list->list_devices)
 		device_list->list_devices[vd->this_device].current = 1;
 
@@ -1831,7 +1831,7 @@ v4l2_stream_formats_t *v4l2core_get_formats_list(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->list_stream_formats;
 }
 
@@ -1849,7 +1849,7 @@ v4l2_ctrl_t *v4l2core_get_control_list(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->list_device_controls;
 }
 
@@ -1867,7 +1867,7 @@ int v4l2core_check_control_events(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	int ret = 0;
 	struct v4l2_event ev;
 
@@ -1924,7 +1924,7 @@ int v4l2core_get_pan_step(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->pan_step;
 }
 
@@ -1942,7 +1942,7 @@ int v4l2core_get_tilt_step(v4l2_dev_t *vd)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	return vd->tilt_step;
 }
 
@@ -1961,7 +1961,7 @@ void v4l2core_set_pan_step(v4l2_dev_t *vd, int step)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	vd->pan_step = step;
 }
 
@@ -1980,7 +1980,7 @@ void v4l2core_set_tilt_step(v4l2_dev_t *vd, int step)
 {
 	/*assertions*/
 	assert(vd != NULL);
-	
+
 	vd->tilt_step = step;
 }
 

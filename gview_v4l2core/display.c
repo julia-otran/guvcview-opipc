@@ -107,7 +107,7 @@ void* display_thread_loop(void *data) {
 			should_draw = 1;
 			prev_display_buffer = display_buffer;
 			display_buffer = current_display_buffer[0];
-			forward(&current_display_buffer);
+			forward(current_display_buffer);
 
 		} else {
 			should_draw = 0;
@@ -140,7 +140,7 @@ void* display_thread_loop(void *data) {
 		if (prev_display_buffer) {
 			pthread_mutex_lock(&current_values_lock);
 
-			put(&current_available_buffer, prev_display_buffer);
+			put(current_available_buffer, prev_display_buffer);
 
 			pthread_cond_signal(&available_buffer_cond);
 
@@ -159,13 +159,13 @@ int get_buffer_number() {
 
 	if (current_available_buffer[0]) {
 		write_buffer = current_available_buffer[0];
-		forward(&current_available_buffer);
+		forward(current_available_buffer);
 	} else if (current_display_buffer[0]) {
 		printf("Waiting next frame. Is draw thread too slow?\n");
 		pthread_cond_wait(&available_buffer_cond, &current_values_lock);
 
 		write_buffer = current_available_buffer[0];
-		forward(&current_available_buffer);
+		forward(current_available_buffer);
 	} else {
 		printf("Failed to dequeue available buffer\n");
 		write_buffer = 0;
@@ -180,7 +180,7 @@ int get_buffer_number() {
 void put_buffer(uint8_t buffer_number) {
 	pthread_mutex_lock(&current_values_lock);
 
-	put(&current_display_buffer, buffer_number);
+	put(current_display_buffer, buffer_number);
 
 	pthread_cond_signal(&display_buffer_cond);
 
