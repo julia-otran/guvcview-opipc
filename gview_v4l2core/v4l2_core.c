@@ -1777,7 +1777,7 @@ v4l2_dev_t* v4l2core_init_dev(const char *device)
 	/*open device*/
 	if ((vd->fd = v4l2_open(vd->videodevice, O_RDWR | O_NONBLOCK, 0)) <= 0)
 	{
-		fprintf(stderr, "V4L2_CORE: ERROR opening V4L interface: %s\n", strerror(errno));
+		fprintf(stderr, "V4L2_CORE: ERROR opening V4L interface [%s]: %s\n", vd->videodevice, strerror(errno));
 		clean_v4l2_dev(vd);
 		return (NULL);
 	}
