@@ -1368,7 +1368,7 @@ static int try_video_stream_format(v4l2_dev_t *vd,
 
 	/* make sure we set a valid format*/
 	if(verbosity > 0)
-		printf("V4L2_CORE: checking format: %c%c%c%c\n",
+		printf("V4L2_CORE: checking format: %ix%i %c%c%c%c\n", width, height,
 			(vd->format.fmt.pix.pixelformat) & 0xFF, ((vd->format.fmt.pix.pixelformat) >> 8) & 0xFF,
 			((vd->format.fmt.pix.pixelformat) >> 16) & 0xFF, ((vd->format.fmt.pix.pixelformat) >> 24) & 0xFF);
 
