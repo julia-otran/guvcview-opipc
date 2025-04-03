@@ -393,7 +393,7 @@ void find_new_plane() {
 
 			if (has_format) {
 				for (j = 0; j < count_crtcs; j++) {
-					if (plane->possible_crtcs & 1 << j) {
+					if (plane->possible_crtcs & (1 << j)) {
 						new_planes[j] = plane;
 					}
 				}
@@ -847,14 +847,16 @@ void deallocate_buffers() {
 }
 
 void stop_drm() {
-	for (int i = 0; i < count_crtcs; i++) {
-		if (new_planes[i]) {
-			drmModeSetPlane(drm_fd, new_planes[i]->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-			drmModeFreePlane(new_planes[i]);
-		}
+	if (new_planes) {
+		for (int i = 0; i < count_crtcs; i++) {
+			if (new_planes[i]) {
+				drmModeSetPlane(drm_fd, new_planes[i]->plane_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+				drmModeFreePlane(new_planes[i]);
+			}
 
-		drmModeSetPlane(drm_fd, 0, crtcs[i]->crtc_id, 0, 0, crtcs[i]->x, crtcs[i]->y, crtcs[i]->width, crtcs[i]->height, 0, 0, crtcs[i]->width, crtcs[i]->height);
-		drmModeFreeCrtc(crtcs[i]);
+			drmModeSetPlane(drm_fd, 0, crtcs[i]->crtc_id, 0, 0, crtcs[i]->x, crtcs[i]->y, crtcs[i]->width, crtcs[i]->height, 0, 0, crtcs[i]->width, crtcs[i]->height);
+			drmModeFreeCrtc(crtcs[i]);
+		}
 	}
 
 	drmDropMaster(drm_fd);
