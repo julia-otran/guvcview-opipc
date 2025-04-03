@@ -59,7 +59,6 @@ extern __MUTEX_TYPE capture_mutex;
 extern __COND_TYPE capture_cond;
 
 static int quit = 0; /*terminate flag*/
-static int restart = 0; /*restart flag*/
 
 /*continues focus*/
 static int do_soft_autofocus = 0;
@@ -100,21 +99,6 @@ void set_soft_focus(int value)
 
 	do_soft_focus = value;
 }
-/*
- * request format update
- * args:
- *    none
- *
- * asserts:
- *    none
- *
- * returns: none
- */
-void request_format_update()
-{
-	restart = 1;
-}
-
 /*
  * quit callback
  * args:
@@ -383,48 +367,6 @@ void *capture_loop(void *data)
 
 	while(!quit)
 	{
-		if(restart)
-		{
-			printf("RESTARTING -----\n");
-			restart = 0; /*reset*/
-
-			// stop_cec_controls();
-
-			v4l2core_stop_stream(my_vd);
-
-			v4l2core_clean_buffers(my_vd);
-
-			/*try new format (values prepared by the request callback)*/
-			ret = v4l2core_update_current_format(my_vd);
-			/*try to set the video stream format on the device*/
-			if(ret != E_OK)
-			{
-				fprintf(stderr, "GUCVIEW: could not set the defined stream format\n");
-				fprintf(stderr, "GUCVIEW: trying first listed stream format\n");
-
-				v4l2core_prepare_valid_format(my_vd);
-				v4l2core_prepare_valid_resolution(my_vd);
-				ret = v4l2core_update_current_format(my_vd);
-
-				if(ret != E_OK)
-				{
-					fprintf(stderr, "GUCVIEW: also could not set the first listed stream format\n");
-
-					return ((void *) -1);
-				}
-			}
-
-			if(debug_level > 0)
-				printf("GUVCVIEW: reset to pixelformat=%x width=%i and height=%i\n",
-					v4l2core_get_requested_frame_format(my_vd),
-					v4l2core_get_frame_width(my_vd),
-					v4l2core_get_frame_height(my_vd));
-
-			// Restart CEC to get values back from it
-			// init_cec_controls();
-			v4l2core_start_stream(my_vd);
-
-		}
 
 		frame = v4l2core_get_decoded_frame(my_vd, &err);
 
@@ -458,18 +400,15 @@ void *capture_loop(void *data)
 			v4l2core_release_frame(my_vd, frame);
 		}
 
-		if (err == ENODEV) {
-			printf("V4L2_CORE: ENODEV returning error\n");
-			// stop_cec_controls();
-			v4l2core_stop_stream(my_vd);
-			printf("V4L2_CORE: Device closed\n");
-			return ((void *)err);
+		if (err) {
+			quit = 1;
+			printf("V4L2_CORE: %s\n", strerror(err));
 		}
 	}
 
 	// stop_cec_controls();
 	v4l2core_stop_stream(my_vd);
 
-	return ((void *) 0);
+	return ((void *) err);
 }
 
