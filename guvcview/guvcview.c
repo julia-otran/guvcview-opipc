@@ -273,11 +273,11 @@ int main(int argc, char *argv[])
     /*save config before cleaning the options*/
 	config_save(config_file);
 
-	if(config_file)
-		free(config_file);
-
 	config_clean();
 	options_clean();
+
+	if(config_file)
+		free(config_file);
 
 	v4l2core_stop();
 
