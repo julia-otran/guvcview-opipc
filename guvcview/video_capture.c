@@ -351,7 +351,6 @@ void *capture_loop(void *data)
 		printf("GUVCVIEW: capture thread (tid: %u)\n",
 			(unsigned int) syscall (SYS_gettid));
 
-	int ret = 0;
 	int err = 0;
 
 	v4l2core_start_stream(my_vd);

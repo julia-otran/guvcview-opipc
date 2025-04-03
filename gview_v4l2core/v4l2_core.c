@@ -1171,8 +1171,10 @@ v4l2_frame_buff_t *v4l2core_get_frame(v4l2_dev_t *vd, int *err)
 
 	int qind = -1;
 
-	if (ret < 0)
+	if (ret != 0) {
+		(*err) = ret;
 		return NULL;
+	}
 
 	int bytes_used = 0;
 
