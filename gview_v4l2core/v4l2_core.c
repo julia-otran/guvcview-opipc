@@ -534,10 +534,6 @@ static int set_v4l2_framerate (v4l2_dev_t *vd)
 		queue_buff(vd);
 	}
 
-	/*try to start the video stream*/
-	if(stream_status == STRM_OK)
-		v4l2core_start_stream(vd);
-
 	/*unlock the mutex*/
 	__UNLOCK_MUTEX( __PMUTEX );
 
@@ -590,7 +586,7 @@ static int check_frame_available(v4l2_dev_t *vd)
 
 	FD_ZERO(&rdset);
 	FD_SET(vd->fd, &rdset);
-	timeout.tv_sec = 1; /* 1 sec timeout*/
+	timeout.tv_sec = 5; /* 1 sec timeout*/
 	timeout.tv_usec = 0;
 	/* select - wait for data or timeout*/
 	ret = select(vd->fd + 1, &rdset, NULL, NULL, &timeout);
@@ -1361,9 +1357,6 @@ static int try_video_stream_format(v4l2_dev_t *vd,
 
 	uint8_t stream_status = vd->streaming;
 
-	if(stream_status == STRM_OK)
-		v4l2core_stop_stream(vd);
-
 	vd->format.fmt.pix.pixelformat = pixelformat;
 	vd->format.fmt.pix.width = width;
 	vd->format.fmt.pix.height = height;
@@ -1486,9 +1479,6 @@ static int try_video_stream_format(v4l2_dev_t *vd,
 
 	/*this locks the mutex (can't be called while the mutex is being locked)*/
 	v4l2core_request_framerate_update(vd);
-
-	if(stream_status == STRM_OK)
-		v4l2core_start_stream(vd);
 
 	/*update the current framerate for the device*/
 	v4l2core_get_framerate(vd);
