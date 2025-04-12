@@ -354,7 +354,7 @@ void *capture_loop(void *data)
 	int err = 0;
 
 	v4l2core_start_stream(my_vd);
-	// init_cec_controls();
+	init_cec_controls();
 
 	v4l2_frame_buff_t *frame = NULL; //pointer to frame buffer
 
@@ -405,7 +405,7 @@ void *capture_loop(void *data)
 		}
 	}
 
-	// stop_cec_controls();
+	stop_cec_controls();
 	v4l2core_stop_stream(my_vd);
 
 	return ((void *) err);

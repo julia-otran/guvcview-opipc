@@ -212,7 +212,7 @@ void set_mode() {
 }
 
 void init_cec_controls() {
-	// cec_fd = open("/dev/cec0", O_RDWR);
+	cec_fd = open("/dev/cec0", O_RDWR);
 
 	if (cec_fd <= 0) {
 		printf("Failed to open CEC. skipping CEC ctrls.\n");
